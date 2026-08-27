@@ -18,6 +18,19 @@
   - 行内操作:复制 URL、访问日志、重置(换 token)、撤销/启用、彻底删除、一键清除已撤销
   - 每条链接的访问日志(时间/IP/UA,Asia/Shanghai 时区)
 
+## 与同类项目的对比
+
+| | OneMail(本项目) | [cloudflare_temp_email](https://github.com/dreamhunter2333/cloudflare_temp_email) | [AuthInbox](https://github.com/TooonyChen/AuthInbox) |
+|---|---|---|---|
+| 运行位置 | 自己的邮件服务器(MIAB) | Cloudflare Workers | Cloudflare Workers |
+| 面向对象 | **已有真实邮箱**的只读分享 | 一次性临时邮箱地址 | 临时接码邮箱 |
+| 依赖 | 无第三方云依赖,数据完全自控 | Cloudflare Email Routing | Cloudflare Email Routing |
+| 验证码提取 | ✅ 关键词规则,大字展示+一键复制 | ❌ | ✅ |
+| 链接有效期/撤销/访问审计(IP/UA/次数) | ✅ | ❌ | ❌ |
+| 账号体系 | 直接复用 MIAB 管理员账号,零额外用户系统 | 自建用户系统 + OAuth/Passkey | 自建 |
+
+选型建议:想要零成本、一次性的临时邮箱,选 cloudflare_temp_email;想把自己服务器上的**真实邮箱**安全地"借"给别人收验证码,选本项目。
+
 ## 技术栈
 
 Python 3.10+ / Flask 3 + gunicorn + sqlite3,纯 CSS + vanilla JS(无任何前端框架),只读解析 Maildir(`mailbox` 风格的 cur/new 目录直读)。界面截图可放在 `docs/` 下(本仓库未包含)。
