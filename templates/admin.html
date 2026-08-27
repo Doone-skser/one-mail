@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block container_class %} container-wide{% endblock %}
+{% block title %}邮箱管理{% endblock %}
+{% block nav %}
+<a href="/admin/">邮箱列表</a>
+<a href="/admin/links">链接汇总</a>
+<a href="/admin/logout">登出</a>
+{% endblock %}
+{% block content %}
+{% if new_url %}
+<div class="card">
+  <div class="ok">新的取件链接:<br><strong>{{ new_url }}</strong></div>
+  <button class="btn btn-sm" onclick="copyText('{{ new_url }}', this)">复制链接</button>
+</div>
+{% endif %}
+{% if flash_msg %}
+<div class="card">
+  <div class="ok">{{ flash_msg }}</div>
+</div>
+{% endif %}
+
+<div class="toolbar">
+  <input type="text" id="box-search" placeholder="搜索邮箱地址…" aria-label="搜索邮箱地址">
+  <button class="btn" id="new-link-btn" type="button">+ 新增链接</button>
+  {% if revoked_count %}
+  <form method="post" action="/admin/links/clear-revoked" class="form-inline">
+    <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+    <input type="hidden" name="next" value="/admin/">
+    <button class="btn btn-gray" type="submit"
+            onclick="return confirm('将彻底删除全部 {{ revoked_count }} 条已撤销链接及其访问记录,确定?')">清除已撤销({{ revoked_count }})</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card" id="new-link-form" style="display:none">
+  <h2>新增取件链接</h2>
+  <form method="post" action="/admin/generate" class="form-inline">
+    <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+    <input type="hidden" name="next" value="/admin/">
+    <select name="email" aria-label="选择邮箱">
+      {% for b in all_boxes %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+    </select>
+    <select name="ttl" aria-label="有效期">
+      <option value="1">1 天</option>
+      <option value="7" selected>7 天</option>
+      <option value="30">30 天</option>
+      <option value="0">永久</option>
+    </select>
+    <button class="btn" type="submit">创建</button>
+  </form>
+</div>
+
+<div class="card empty-state" id="no-match" style="display:none; margin-top:16px; padding:32px 20px;">
+  <h1>没有匹配的邮箱</h1>
+  <p class="muted">换个关键词试试。</p>
+</div>
+
+{% if not boxes %}
+<div class="card empty-state">
+  <h1>还没有取件链接</h1>
+  <p class="muted">点击右上角「+ 新增链接」为任意邮箱创建一个。</p>
+</div>
+{% endif %}
+
+{% macro ttl_select() %}
+<select name="ttl">
+  <option value="1">1 天</option>
+  <option value="7" selected>7 天</option>
+  <option value="30">30 天</option>
+  <option value="0">永久</option>
+</select>
+{% endmacro %}
+
+{% for b in boxes %}
+{% set links = links_by_email.get(b, []) %}
+<div class="card box-card" data-email="{{ b }}">
+  <div class="box-head">
+    <div>
+      <span class="box-email">{{ b }}</span>
+      <span class="muted" style="margin-left:8px">{{ links | length }} 个链接</span>
+    </div>
+  </div>
+
+  <div class="link-sub">
+    {% for l in links %}
+    <div class="link-row">
+      <div class="link-info">
+        <span class="badge {{ l.status_cls }}">{{ l.status }}</span>
+        <span class="muted" style="margin-left:6px">{{ l.remaining }}</span>
+        <div class="link-meta">
+          访问 {{ l.visits }} 次 · 最近 {{ l.last_visit_str }} · 创建于 {{ l.created_str }}
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-gray btn-sm" onclick="copyText('{{ l.url }}', this)">复制 URL</button>
+        <a class="btn btn-gray btn-sm" href="/admin/links/{{ l.id }}">日志</a>
+        <form method="post" action="/admin/links/{{ l.id }}/reset" class="form-inline">
+          <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+          <input type="hidden" name="next" value="/admin/">
+          {{ ttl_select() }}
+          <button class="btn btn-gray btn-sm" type="submit"
+                  onclick="return confirm('重置后旧链接立即失效,确定?')">重置</button>
+        </form>
+        {% if not l.expired %}
+        <form method="post" action="/admin/links/{{ l.id }}/toggle" class="form-inline">
+          <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+          <input type="hidden" name="next" value="/admin/">
+          {% if l.active %}
+          <button class="btn btn-red btn-sm" type="submit">撤销</button>
+          {% else %}
+          <button class="btn btn-sm" type="submit">启用</button>
+          {% endif %}
+        </form>
+        {% endif %}
+        <form method="post" action="/admin/links/{{ l.id }}/delete" class="form-inline">
+          <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+          <input type="hidden" name="next" value="/admin/">
+          <button class="btn btn-red btn-sm" type="submit"
+                  onclick="return confirm('删除后该 URL 永久失效,访问记录也会一并清除,确定删除?')">删除</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+
+<script>
+// 邮箱卡片实时过滤(纯前端,不区分大小写)
+(function () {
+  var input = document.getElementById('box-search');
+  var noMatch = document.getElementById('no-match');
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase();
+    var cards = document.querySelectorAll('.box-card');
+    var visible = 0;
+    for (var i = 0; i < cards.length; i++) {
+      var show = cards[i].getAttribute('data-email').toLowerCase().indexOf(q) !== -1;
+      cards[i].style.display = show ? '' : 'none';
+      if (show) visible++;
+    }
+    noMatch.style.display = visible ? 'none' : 'block';
+  });
+  // 新增链接表单展开/收起
+  var btn = document.getElementById('new-link-btn');
+  var form = document.getElementById('new-link-form');
+  btn.addEventListener('click', function () {
+    var open = form.style.display !== 'none';
+    form.style.display = open ? 'none' : 'block';
+    btn.textContent = open ? '+ 新增链接' : '收起';
+    if (!open) form.querySelector('select[name=email]').focus();
+  });
+})();
+</script>
+{% endblock %}

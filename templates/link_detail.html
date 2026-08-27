@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block container_class %} container-wide{% endblock %}
+{% block title %}链接详情{% endblock %}
+{% block nav %}
+<a href="/admin/">邮箱列表</a>
+<a href="/admin/links">链接汇总</a>
+<a href="/admin/logout">登出</a>
+{% endblock %}
+{% block content %}
+<p style="margin-top:18px"><a href="/admin/links">← 返回链接汇总</a></p>
+<div class="card">
+  <h1>链接详情</h1>
+  <table class="header-meta">
+    <tr><td>绑定邮箱</td><td>{{ link.email }}</td></tr>
+    <tr><td>链接</td><td style="word-break:break-all"><a href="{{ link.url }}">{{ link.url }}</a>
+      <button class="btn btn-gray btn-sm" onclick="copyText('{{ link.url }}', this)">复制</button></td></tr>
+    <tr><td>状态</td><td><span class="badge {{ link.status_cls }}">{{ link.status }}</span></td></tr>
+    <tr><td>有效期</td><td>{{ link.remaining }}</td></tr>
+    <tr><td>创建时间</td><td>{{ link.created_str }}</td></tr>
+    <tr><td>访问记录</td><td>{{ logs | length }} 条</td></tr>
+  </table>
+</div>
+<div class="card">
+  <h2>访问日志(最新在前)</h2>
+  <div class="table-wrap">
+  <table>
+    <tr><th>时间</th><th>IP</th><th>User-Agent</th></tr>
+    {% for log in logs %}
+    <tr>
+      <td class="muted" style="white-space:nowrap">{{ log.ts }}</td>
+      <td style="white-space:nowrap">{{ log.ip }}</td>
+      <td class="muted">{{ log.ua }}</td>
+    </tr>
+    {% endfor %}
+    {% if not logs %}<tr><td colspan="3" class="muted">暂无访问记录</td></tr>{% endif %}
+  </table>
+  </div>
+</div>
+{% endblock %}

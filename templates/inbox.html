@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}{% if view == 'all' %}全部邮件{% else %}验证码邮件{% endif %} - {{ email }}{% endblock %}
+{% block content %}
+<div class="card inbox-head">
+  <div class="inbox-email-row">
+    <span class="inbox-email">{{ email }}</span>
+    <button class="btn btn-gray btn-sm copy-btn" data-code="{{ email }}"
+            aria-label="复制邮箱地址">复制邮箱</button>
+  </div>
+  <nav class="tabs" aria-label="视图切换">
+    <a class="tab{% if view != 'all' %} active{% endif %}" href="/m/{{ token }}"
+       {% if view != 'all' %}aria-current="page"{% endif %}>验证码</a>
+    <a class="tab{% if view == 'all' %} active{% endif %}" href="/m/{{ token }}?view=all"
+       {% if view == 'all' %}aria-current="page"{% endif %}>全部邮件</a>
+  </nav>
+  <div class="inbox-sub">
+    <span>{% if view == 'all' %}共 {{ total }} 封邮件{% else %}共 {{ total }} 封验证码邮件{% endif %}{% if total and pages > 1 %} · 第 {{ page }} / {{ pages }} 页{% endif %}</span>
+    <span class="live"><span class="live-dot" aria-hidden="true"></span>自动更新中,新邮件到达后会自动刷新</span>
+  </div>
+</div>
+{% if mails %}
+<div class="mail-list">
+  {% for m in mails %}
+  <article class="mail-card{% if loop.first and page == 1 %} latest{% endif %}">
+    {% if loop.first and page == 1 %}<span class="tag-latest">最新</span>{% endif %}
+    {% if m.code %}
+    <div class="mail-code-row">
+      <span class="code-big">{{ m.code }}</span>
+      <button class="btn btn-soft btn-sm copy-btn" data-code="{{ m.code }}">复制</button>
+    </div>
+    <div class="mail-meta">
+      <a href="/m/{{ token }}/msg/{{ m.key | urlencode }}">{{ m.from }}</a>
+      <span class="mail-subject hide-sm">{{ m.subject }}</span>
+      <time>{{ m.date }}</time>
+    </div>
+    {% else %}
+    <div class="mail-plain-subject">
+      <a href="/m/{{ token }}/msg/{{ m.key | urlencode }}">{{ m.subject }}</a>
+    </div>
+    <div class="mail-meta">
+      <span class="mail-from">{{ m.from }}</span>
+      <time>{{ m.date }}</time>
+    </div>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% if pages > 1 %}
+<div class="pager">
+  {% if page > 1 %}<a class="btn btn-gray btn-sm" href="?view={{ view }}&page={{ page - 1 }}">上一页</a>{% endif %}
+  <span class="muted">{{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a class="btn btn-gray btn-sm" href="?view={{ view }}&page={{ page + 1 }}">下一页</a>{% endif %}
+</div>
+{% endif %}
+{% else %}
+<div class="card empty-state">
+  <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="3" y="5" width="18" height="14" rx="2"/>
+    <path d="m3 7 9 6 9-6"/>
+  </svg>
+  {% if view == 'all' %}
+  <h1>收件箱为空</h1>
+  <p class="muted">还没有收到任何邮件。</p>
+  {% else %}
+  <h1>没有找到验证码邮件</h1>
+  <p class="muted">当前收件箱里没有识别出含验证码的邮件,<br>收到新的验证码邮件后会自动出现在这里。</p>
+  {% endif %}
+</div>
+{% endif %}
+<script>
+// 自动更新:每 5 秒询问 check 接口,只有邮件总数或最新一封变化时才整页刷新;
+// fetch 失败(断网等)静默重试。check 接口按当前视图区分统计口径。
+(function () {
+  var init = { count: {{ total }}, latest: {{ latest | tojson }} };
+  var checkUrl = '/m/{{ token }}/check{% if view == 'all' %}?view=all{% endif %}';
+  function poll() {
+    fetch(checkUrl, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.count !== init.count || d.latest !== init.latest) {
+          location.reload();
+          return;
+        }
+        setTimeout(poll, 5000);
+      })
+      .catch(function () { setTimeout(poll, 5000); });
+  }
+  setTimeout(poll, 5000);
+})();
+</script>
+{% endblock %}

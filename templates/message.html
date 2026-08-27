@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block container_class %} container-msg{% endblock %}
+{% block title %}{{ subject }}{% endblock %}
+{% block content %}
+<p style="margin-top:18px"><a href="/m/{{ token }}">← 返回列表</a></p>
+{% if code %}
+<div class="card code-hero">
+  <div class="muted" style="font-size:13px">验证码</div>
+  <span class="code-big">{{ code }}</span>
+  <div><button class="btn btn-soft copy-btn" data-code="{{ code }}">复制验证码</button></div>
+</div>
+{% endif %}
+<div class="card">
+  <h1>{{ subject }}</h1>
+  <dl class="meta-dl">
+    <dt>发件人</dt><dd>{{ from_addr }}</dd>
+    <dt>收件人</dt><dd>{{ to_addr }}</dd>
+    <dt>日期</dt><dd>{{ date }}</dd>
+  </dl>
+</div>
+{% if html_body %}
+<div class="remote-bar">
+  {% if remote %}
+  <span>远端图片已加载</span>
+  <a class="btn btn-gray btn-sm" href="{{ request.path }}">点击屏蔽</a>
+  {% else %}
+  <span>远端图片未加载</span>
+  <a class="btn btn-soft btn-sm" href="{{ request.path }}?remote=1">点击加载</a>
+  {% endif %}
+</div>
+{% endif %}
+<div class="mail-body">
+  <div class="mail-body-content">
+  {% if text_body %}
+  <pre>{{ text_body }}</pre>
+  {% elif html_body %}
+  <iframe id="mailframe" class="htmlmail" sandbox="allow-same-origin"
+          srcdoc="{{ html_body }}" title="邮件正文"></iframe>
+  {% else %}
+  <p class="muted">(此邮件没有正文)</p>
+  {% endif %}
+  </div>
+</div>
+{% if atts %}
+<div class="card">
+  <h2>附件({{ atts | length }})</h2>
+  <table>
+    {% for i, fn, size in atts %}
+    <tr>
+      <td>{{ fn }}</td>
+      <td class="muted" style="white-space:nowrap">{{ size | fmt_size }}</td>
+      <td style="text-align:right"><a class="btn btn-gray btn-sm"
+         href="/m/{{ token }}/msg/{{ key | urlencode }}/att/{{ i }}">下载</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% if html_body and not text_body %}
+<script>
+// iframe 高度自适应内容(allow-same-origin 下可读 contentDocument;量不到保持 70vh)
+(function () {
+  var f = document.getElementById('mailframe');
+  if (!f) return;
+  f.addEventListener('load', function () {
+    try {
+      var h = f.contentDocument && f.contentDocument.documentElement
+                && f.contentDocument.documentElement.scrollHeight;
+      if (h && h > 0) f.style.height = Math.min(Math.max(h + 2, 300), 10000) + 'px';
+    } catch (e) { /* 保持 min-height */ }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}管理员登录{% endblock %}
+{% block content %}
+<div class="card" style="max-width:400px; margin: 60px auto 0;">
+  <h1>管理员登录</h1>
+  {% if error %}<div class="alert">{{ error }}</div>{% endif %}
+  <form method="post">
+    <label>管理员邮箱</label>
+    <input type="email" name="email" required autofocus placeholder="admin@example.com">
+    <label>密码</label>
+    <input type="password" name="password" required>
+    <button class="btn" type="submit" style="width:100%">登录</button>
+  </form>
+  <p class="muted" style="margin-top:12px">使用邮件服务器管理员账号登录,会话有效期 12 小时。</p>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+[Unit]
+Description=OneMail pickup service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/onemail
+ExecStart=/opt/onemail/venv/bin/gunicorn -w 2 -b 127.0.0.1:8200 app:app
+Restart=always
+RestartSec=3
+# maildir 目录(/home/user-data/mail/mailboxes/<域>/)是 MIAB 管的 drwx------ mail:mail,
+# 非 root 无法只读进入,故保持 root 运行,用 systemd 沙箱收紧
+User=root
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/opt/onemail
+
+[Install]
+WantedBy=multi-user.target
