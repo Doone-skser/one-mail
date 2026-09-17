@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """OneMail - 邮件取件小服务 (只读访问 MIAB Maildir)"""
 import base64
+import grp
 import html as html_mod
 import json
 import logging
 import os
+import pwd
 import re
 import secrets
 import sqlite3
@@ -28,6 +30,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE, 'onemail.db')
 MAILBOX_ROOT = '/home/user-data/mail/mailboxes'
 MIAB_API = 'https://127.0.0.1/admin/mail/users?format=json'
+MIAB_ADD_API = 'https://127.0.0.1/admin/mail/users/add'
 TZ = ZoneInfo('Asia/Shanghai')
 PER_PAGE = 20
 DEV_HOST = '127.0.0.1'   # 本地调试用;生产监听地址在 deploy/onemail.service 里
@@ -127,6 +130,18 @@ def init_db():
             pw TEXT,
             expires REAL
         );
+        CREATE TABLE IF NOT EXISTS one_shot (
+            id INTEGER PRIMARY KEY,
+            sid TEXT,
+            kind TEXT,
+            data TEXT,
+            expires REAL
+        );
+        CREATE TABLE IF NOT EXISTS mailbox_notes (
+            email TEXT PRIMARY KEY,
+            note TEXT,
+            updated_at REAL
+        );
     ''')
     # 迁移:为 links 增加 expires_at(NULL = 永久),已有行默认 NULL
     cols = [r[1] for r in db.execute('PRAGMA table_info(links)')]
@@ -176,6 +191,56 @@ def miab_users(email, password):
         _users_cache['ts'] = time.time()
         _users_cache['data'] = boxes
     return boxes
+
+
+def invalidate_users_cache():
+    """新增邮箱后清掉列表缓存,让下拉框立刻出现新地址。"""
+    with _users_lock:
+        _users_cache['data'] = None
+
+
+def miab_add_user(admin_email, admin_password, new_email, new_password):
+    """调 MIAB 管理 API 创建邮箱。返回 (ok, msg):ok=True 时 msg 为成功文本
+    ('OK' 或 'mail user added'),否则为 MIAB 返回的错误文本(或网络错误描述)。"""
+    body = urllib.parse.urlencode(
+        {'email': new_email, 'password': new_password}).encode()
+    req = urllib.request.Request(MIAB_ADD_API, data=body)
+    cred = base64.b64encode(
+        ('%s:%s' % (admin_email, admin_password)).encode()).decode()
+    req.add_header('Authorization', 'Basic ' + cred)
+    try:
+        with urllib.request.urlopen(req, context=_ssl_ctx, timeout=15) as r:
+            text = r.read().decode('utf-8', 'replace').strip()
+    except urllib.error.HTTPError as e:
+        text = e.read().decode('utf-8', 'replace').strip() or str(e)
+        return False, text
+    except Exception as e:
+        return False, str(e)
+    # MIAB 不同版本成功文案不同:旧版 'OK',新版 'mail user added'
+    return (text in ('OK', 'mail user added')), text
+
+
+def ensure_maildir(email_addr):
+    """为新邮箱直接创建 Maildir 结构(cur/new/tmp,属主 mail:mail,700)。
+    dovecot 只在首次登录/收信时才建这些目录,提前建好取件链接立即可用。
+    需要对本目录的写权限(systemd 里配了 ReadWritePaths);失败返回 False。"""
+    local, _, domain = email_addr.partition('@')
+    if not local or not domain:
+        return False
+    base = os.path.normpath(os.path.join(MAILBOX_ROOT, domain, local))
+    if not base.startswith(os.path.normpath(MAILBOX_ROOT) + os.sep):
+        return False
+    try:
+        uid = pwd.getpwnam('mail').pw_uid
+        gid = grp.getgrnam('mail').gr_gid
+        for sub in ('cur', 'new', 'tmp'):
+            d = os.path.join(base, sub)
+            os.makedirs(d, exist_ok=True)
+            os.chown(d, uid, gid)
+            os.chmod(d, 0o700)
+        return True
+    except Exception:
+        return False
 
 
 # ---------- Maildir 只读解析 ----------
@@ -431,6 +496,29 @@ def get_link(token):
         'SELECT * FROM links WHERE token = ?', (token,)).fetchone()
 
 
+# ---------- 邮箱备注 ----------
+
+NOTE_MAX = 200
+
+
+def get_notes():
+    """返回 {email: note}。"""
+    return {r['email']: r['note'] for r in get_db().execute(
+        'SELECT email, note FROM mailbox_notes')}
+
+
+def set_note(email, note):
+    """写入备注(不 commit);空备注即删除。"""
+    db = get_db()
+    note = (note or '').strip()[:NOTE_MAX]
+    if note:
+        db.execute('INSERT INTO mailbox_notes (email, note, updated_at) VALUES (?,?,?)'
+                   ' ON CONFLICT(email) DO UPDATE SET note = excluded.note,'
+                   ' updated_at = excluded.updated_at', (email, note, time.time()))
+    else:
+        db.execute('DELETE FROM mailbox_notes WHERE email = ?', (email,))
+
+
 # ---------- 链接有效期 ----------
 
 TTL_CHOICES = {'1': 1, '7': 7, '30': 30, '0': None}  # 天数; None = 永久
@@ -576,6 +664,34 @@ def drop_admin_session():
         db.commit()
 
 
+def stash_result(kind, data):
+    """跨请求一次性结果(如新邮箱密码)存服务端 sqlite,避免明文进 cookie
+    session(Flask session 只签名不加密)。2 分钟有效,读后即焚。"""
+    sid = session.get('sid')
+    if not sid:
+        return
+    db = get_db()
+    db.execute('DELETE FROM one_shot WHERE expires < ?', (time.time(),))
+    db.execute('INSERT INTO one_shot (sid, kind, data, expires) VALUES (?,?,?,?)',
+               (sid, kind, json.dumps(data), time.time() + 120))
+    db.commit()
+
+
+def pop_result(kind):
+    sid = session.get('sid')
+    if not sid:
+        return None
+    db = get_db()
+    row = db.execute(
+        'SELECT id, data FROM one_shot WHERE sid = ? AND kind = ? AND expires >= ?'
+        ' ORDER BY id DESC', (sid, kind, time.time())).fetchone()
+    if row is None:
+        return None
+    db.execute('DELETE FROM one_shot WHERE id = ?', (row['id'],))
+    db.commit()
+    return json.loads(row['data'])
+
+
 @app.before_request
 def csrf_protect():
     """管理端 POST(登录除外)校验 CSRF token;已登录 GET 确保 token 存在。"""
@@ -615,7 +731,7 @@ def index():
 
 
 # 验证码邮件缓存:(maildir, key) -> (mtime, entry|None),entry 为展示用 dict。
-# 轮询接口每 5 秒跑一次,靠 mtime 命中缓存避免反复解析全部邮件。
+# 轮询接口每 2 秒跑一次,靠 mtime 命中缓存避免反复解析全部邮件。
 _code_cache = {}
 
 
@@ -876,14 +992,19 @@ def admin_home():
             link_view(row, request.host, now, row['visits'], row['last_visit']))
     new_url = session.pop('new_url', None)
     flash_msg = session.pop('flash_msg', None)
+    flash_err = session.pop('flash_err', None)
+    new_mailbox = pop_result('new_mailbox')
     # 首页只显示已创建过取件链接的邮箱;all_boxes 供"新增链接"下拉选择
     boxes = [b for b in boxes if b in links_by_email]
     revoked_count = sum(
         1 for ls in links_by_email.values() for l in ls if not l['active'])
+    domains = sorted({b.split('@', 1)[1] for b in all_boxes if '@' in b})
     return render_template('admin.html', boxes=boxes, all_boxes=all_boxes,
-                           new_url=new_url, flash_msg=flash_msg,
+                           new_url=new_url, new_mailbox=new_mailbox,
+                           flash_msg=flash_msg,
+                           flash_err=flash_err, domains=domains,
                            revoked_count=revoked_count,
-                           links_by_email=links_by_email)
+                           links_by_email=links_by_email, notes=get_notes())
 
 
 def _new_token(db):
@@ -920,6 +1041,98 @@ def admin_generate():
         (token, email, time.time(), expires))
     db.commit()
     session['new_url'] = 'https://%s/m/%s' % (request.host, token)
+    return redirect(_safe_next())
+
+
+LOCAL_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
+
+
+@app.route('/admin/mailboxes/add', methods=['POST'])
+def admin_add_mailbox():
+    """添加新邮箱:调 MIAB API 建号,再直接预建 Maildir(cur/new/tmp),
+    使取件链接立即可用。密码留空则自动生成,仅在创建成功时展示一次。"""
+    r = admin_required()
+    if r:
+        return r
+    local = request.form.get('local', '').strip().lower()
+    domain = request.form.get('domain', '').strip().lower()
+    password = request.form.get('password', '')
+    if not LOCAL_RE.match(local):
+        session['flash_err'] = '邮箱用户名只能含字母、数字、点、下划线、连字符'
+        return redirect(_safe_next())
+    creds = get_admin_creds()
+    boxes = miab_users(*creds)
+    domains = {b.split('@', 1)[1] for b in (boxes or []) if '@' in b}
+    if domain not in domains:
+        session['flash_err'] = '域名 %s 不在本服务器托管范围内' % domain
+        return redirect(_safe_next())
+    email = '%s@%s' % (local, domain)
+    if boxes and email in boxes:
+        session['flash_err'] = '邮箱 %s 已存在' % email
+        return redirect(_safe_next())
+    auto_pw = not password
+    if auto_pw:
+        password = secrets.token_urlsafe(12)
+    elif len(password) < 8:
+        session['flash_err'] = '密码至少 8 位(留空则自动生成)'
+        return redirect(_safe_next())
+    ok, msg = miab_add_user(creds[0], creds[1], email, password)
+    if not ok:
+        session['flash_err'] = '创建失败:%s' % msg
+        return redirect(_safe_next())
+    invalidate_users_cache()
+    note = request.form.get('note', '')
+    if note.strip():
+        set_note(email, note)
+        get_db().commit()
+    ready = ensure_maildir(email)
+    # 密码只展示一次:存服务端一次性结果,结果弹窗读取后即删
+    stash_result('new_mailbox',
+                 {'email': email, 'password': password, 'ready': ready})
+    return redirect(_safe_next())
+
+
+@app.route('/admin/mailboxes/note', methods=['POST'])
+def admin_mailbox_note():
+    """设置/清除邮箱备注(留空即清除)。"""
+    r = admin_required()
+    if r:
+        return r
+    email = request.form.get('email', '').strip()
+    if not email or '@' not in email:
+        abort(400)
+    set_note(email, request.form.get('note', ''))
+    get_db().commit()
+    session['flash_msg'] = '%s 的备注已更新' % email
+    return redirect(_safe_next())
+
+
+@app.route('/admin/links/<int:lid>/extend', methods=['POST'])
+def admin_extend(lid):
+    """顺延有效期:在当前到期时间(已过期则从当前时刻)基础上加所选天数,
+    不换 token、URL 不变;选"永久"则取消过期时间。不改变启用/撤销状态。"""
+    r = admin_required()
+    if r:
+        return r
+    db = get_db()
+    link = db.execute('SELECT * FROM links WHERE id = ?', (lid,)).fetchone()
+    if link is None:
+        abort(404)
+    ttl = request.form.get('ttl', '')
+    if ttl not in TTL_CHOICES:
+        abort(400)
+    days = TTL_CHOICES[ttl]
+    if days is None:
+        db.execute('UPDATE links SET expires_at = NULL WHERE id = ?', (lid,))
+    else:
+        now = time.time()
+        exp = link['expires_at']
+        base = exp if exp is not None and exp > now else now
+        db.execute('UPDATE links SET expires_at = ? WHERE id = ?',
+                   (base + days * 86400, lid))
+    db.commit()
+    session['flash_msg'] = '链接 #%d 有效期已%s' % (
+        lid, '改为永久' if days is None else '顺延 %d 天' % days)
     return redirect(_safe_next())
 
 

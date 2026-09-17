@@ -8,9 +8,15 @@
 {% endblock %}
 {% block content %}
 {% if new_url %}
-<div class="card">
-  <div class="ok">新的取件链接:<br><strong>{{ new_url }}</strong></div>
-  <button class="btn btn-sm" onclick="copyText('{{ new_url }}', this)">复制链接</button>
+<div class="modal-mask">
+  <div class="modal">
+    <div class="modal-head"><h2>新的取件链接</h2><button class="modal-x" type="button" aria-label="关闭">✕</button></div>
+    <p class="result-text">{{ new_url }}</p>
+    <div class="modal-actions">
+      <button class="btn copy-btn" data-code="{{ new_url }}">复制链接</button>
+      <button class="btn btn-gray modal-x" type="button">关闭</button>
+    </div>
+  </div>
 </div>
 {% endif %}
 <div class="card">

@@ -69,7 +69,7 @@
 </div>
 {% endif %}
 <script>
-// 自动更新:每 5 秒询问 check 接口,只有邮件总数或最新一封变化时才整页刷新;
+// 自动更新:每 2 秒询问 check 接口,只有邮件总数或最新一封变化时才整页刷新;
 // fetch 失败(断网等)静默重试。check 接口按当前视图区分统计口径。
 (function () {
   var init = { count: {{ total }}, latest: {{ latest | tojson }} };
@@ -82,11 +82,11 @@
           location.reload();
           return;
         }
-        setTimeout(poll, 5000);
+        setTimeout(poll, 2000);
       })
-      .catch(function () { setTimeout(poll, 5000); });
+      .catch(function () { setTimeout(poll, 2000); });
   }
-  setTimeout(poll, 5000);
+  setTimeout(poll, 2000);
 })();
 </script>
 {% endblock %}

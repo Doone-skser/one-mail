@@ -14,8 +14,9 @@
   - 邮件详情:超大验证码 hero 区、HTML 正文 iframe sandbox 渲染(高度自适应)、**远端图片默认剥离**,点开关才加载、附件下载
   - 链接失效(过期/撤销/不存在)显示对应的中文提示页,支持配置邮箱地址打码
 - **管理端**(`/admin/`,MIAB 管理员邮箱+密码登录)
+  - 添加邮箱:调 MIAB API 建号 + 直接预建 Maildir(新邮箱取件链接立即可用),密码可留空自动生成
   - 邮箱卡片(仅显示有链接的邮箱)+ 实时搜索 + 新增链接(可选 1 天/7 天/30 天/永久)
-  - 行内操作:复制 URL、访问日志、重置(换 token)、撤销/启用、彻底删除、一键清除已撤销
+  - 行内操作:复制 URL、访问日志、延期(在当前到期时间上顺延 1/7/30 天或改永久,URL 不变)、重置(换 token)、撤销/启用、彻底删除、一键清除已撤销
   - 每条链接的访问日志(时间/IP/UA,Asia/Shanghai 时区)
 
 ## 与同类项目的对比
@@ -99,7 +100,8 @@ fail2ban-client reload
 | 常量 | 默认 | 说明 |
 |---|---|---|
 | `MAILBOX_ROOT` | `/home/user-data/mail/mailboxes` | MIAB Maildir 根目录 |
-| `MIAB_API` | `https://127.0.0.1/admin/mail/users?format=json` | MIAB 管理 API |
+| `MIAB_API` | `https://127.0.0.1/admin/mail/users?format=json` | MIAB 管理 API(列表/登录验证) |
+| `MIAB_ADD_API` | `.../admin/mail/users/add` | 添加邮箱 API(成功后直接预建 Maildir,需 systemd `ReadWritePaths` 放行 mailboxes 目录) |
 | `MASKED_MAILBOXES` | `{"masked@example.com"}` | 失效提示页上打码显示的邮箱集合(如 `ma**@example.com`);链接有效时始终显示完整地址 |
 | `PER_PAGE` | `20` | 收件箱每页封数 |
 | `TTL_CHOICES` | 1/7/30 天、永久 | 生成/重置链接时的有效期选项 |

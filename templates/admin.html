@@ -7,21 +7,54 @@
 <a href="/admin/logout">登出</a>
 {% endblock %}
 {% block content %}
-{% if new_url %}
-<div class="card">
-  <div class="ok">新的取件链接:<br><strong>{{ new_url }}</strong></div>
-  <button class="btn btn-sm" onclick="copyText('{{ new_url }}', this)">复制链接</button>
+{% if flash_msg or flash_err %}
+<div class="toast-wrap">
+  {% if flash_msg %}
+  <div class="toast toast-ok"><span>{{ flash_msg }}</span><button class="toast-close" type="button" aria-label="关闭">✕</button></div>
+  {% endif %}
+  {% if flash_err %}
+  <div class="toast toast-err"><span>{{ flash_err }}</span><button class="toast-close" type="button" aria-label="关闭">✕</button></div>
+  {% endif %}
 </div>
 {% endif %}
-{% if flash_msg %}
-<div class="card">
-  <div class="ok">{{ flash_msg }}</div>
+
+{% if new_url %}
+<div class="modal-mask">
+  <div class="modal">
+    <div class="modal-head"><h2>新的取件链接</h2><button class="modal-x" type="button" aria-label="关闭">✕</button></div>
+    <p class="result-text">{{ new_url }}</p>
+    <div class="modal-actions">
+      <button class="btn copy-btn" data-code="{{ new_url }}">复制链接</button>
+      <button class="btn btn-gray modal-x" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if new_mailbox %}
+<div class="modal-mask">
+  <div class="modal">
+    <div class="modal-head"><h2>邮箱创建成功</h2><button class="modal-x" type="button" aria-label="关闭">✕</button></div>
+    <div class="meta-dl">
+      <dt>邮箱</dt><dd>{{ new_mailbox.email }}</dd>
+      <dt>密码</dt><dd><code>{{ new_mailbox.password }}</code></dd>
+    </div>
+    {% if not new_mailbox.ready %}
+    <p class="alert" style="margin-top:12px">Maildir 预建失败,首次收信或登录后取件链接才可用。</p>
+    {% endif %}
+    <p class="muted" style="margin-top:10px">密码仅在此显示一次,请立即保存。</p>
+    <div class="modal-actions">
+      <button class="btn copy-btn" data-code="{{ new_mailbox.password }}">复制密码</button>
+      <button class="btn btn-gray modal-x" type="button">关闭</button>
+    </div>
+  </div>
 </div>
 {% endif %}
 
 <div class="toolbar">
-  <input type="text" id="box-search" placeholder="搜索邮箱地址…" aria-label="搜索邮箱地址">
+  <input type="text" id="box-search" placeholder="搜索邮箱地址或备注…" aria-label="搜索邮箱地址或备注">
   <button class="btn" id="new-link-btn" type="button">+ 新增链接</button>
+  <button class="btn btn-gray" id="add-box-btn" type="button">+ 添加邮箱</button>
   {% if revoked_count %}
   <form method="post" action="/admin/links/clear-revoked" class="form-inline">
     <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
@@ -32,22 +65,56 @@
   {% endif %}
 </div>
 
-<div class="card" id="new-link-form" style="display:none">
-  <h2>新增取件链接</h2>
-  <form method="post" action="/admin/generate" class="form-inline">
-    <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
-    <input type="hidden" name="next" value="/admin/">
-    <select name="email" aria-label="选择邮箱">
-      {% for b in all_boxes %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
-    </select>
-    <select name="ttl" aria-label="有效期">
-      <option value="1">1 天</option>
-      <option value="7" selected>7 天</option>
-      <option value="30">30 天</option>
-      <option value="0">永久</option>
-    </select>
-    <button class="btn" type="submit">创建</button>
-  </form>
+<div class="modal-mask" id="new-link-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-head"><h2>新增取件链接</h2><button class="modal-x" type="button" aria-label="关闭">✕</button></div>
+    <form method="post" action="/admin/generate">
+      <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+      <input type="hidden" name="next" value="/admin/">
+      <label>邮箱</label>
+      <select name="email" class="modal-field" aria-label="选择邮箱">
+        {% for b in all_boxes %}<option value="{{ b }}">{{ b }}{% if notes.get(b) %}({{ notes[b] }}){% endif %}</option>{% endfor %}
+      </select>
+      <label>有效期</label>
+      <select name="ttl" class="modal-field" aria-label="有效期">
+        <option value="1">1 天</option>
+        <option value="7" selected>7 天</option>
+        <option value="30">30 天</option>
+        <option value="0">永久</option>
+      </select>
+      <div class="modal-actions"><button class="btn" type="submit">创建</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-mask" id="add-box-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-head"><h2>添加邮箱</h2><button class="modal-x" type="button" aria-label="关闭">✕</button></div>
+    <p class="muted" style="margin-bottom:12px">
+      在邮件服务器上创建新邮箱并预建 Maildir,取件链接立即可用。
+    </p>
+    <form method="post" action="/admin/mailboxes/add">
+      <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+      <input type="hidden" name="next" value="/admin/">
+      <label>邮箱地址</label>
+      <div class="form-inline" style="margin-bottom:12px">
+        <input type="text" name="local" required autocomplete="off"
+               placeholder="用户名,如 hello" aria-label="邮箱用户名"
+               style="width:200px; margin-bottom:0">
+        <span style="font-size:15px">@</span>
+        <select name="domain" aria-label="域名">
+          {% for d in domains %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+        </select>
+      </div>
+      <label>密码</label>
+      <input type="text" name="password" autocomplete="off"
+             placeholder="留空自动生成(创建成功后仅显示一次)" aria-label="邮箱密码">
+      <label>备注</label>
+      <input type="text" name="note" autocomplete="off" maxlength="200"
+             placeholder="可选,如用途/归属人" aria-label="邮箱备注">
+      <div class="modal-actions"><button class="btn" type="submit">创建邮箱</button></div>
+    </form>
+  </div>
 </div>
 
 <div class="card empty-state" id="no-match" style="display:none; margin-top:16px; padding:32px 20px;">
@@ -73,12 +140,20 @@
 
 {% for b in boxes %}
 {% set links = links_by_email.get(b, []) %}
-<div class="card box-card" data-email="{{ b }}">
+<div class="card box-card" data-email="{{ b }}" data-note="{{ notes.get(b, '') }}">
   <div class="box-head">
     <div>
       <span class="box-email">{{ b }}</span>
       <span class="muted" style="margin-left:8px">{{ links | length }} 个链接</span>
+      {% if notes.get(b) %}<div class="box-note">备注:{{ notes[b] }}</div>{% endif %}
     </div>
+    <form method="post" action="/admin/mailboxes/note" class="form-inline note-form">
+      <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+      <input type="hidden" name="next" value="/admin/">
+      <input type="hidden" name="email" value="{{ b }}">
+      <input type="hidden" name="note" value="{{ notes.get(b, '') }}">
+      <button class="btn btn-gray btn-sm" type="submit">{{ '编辑备注' if notes.get(b) else '添加备注' }}</button>
+    </form>
   </div>
 
   <div class="link-sub">
@@ -94,6 +169,17 @@
       <div class="actions">
         <button class="btn btn-gray btn-sm" onclick="copyText('{{ l.url }}', this)">复制 URL</button>
         <a class="btn btn-gray btn-sm" href="/admin/links/{{ l.id }}">日志</a>
+        <form method="post" action="/admin/links/{{ l.id }}/extend" class="form-inline">
+          <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+          <input type="hidden" name="next" value="/admin/">
+          <select name="ttl" onchange="this.form.submit()" aria-label="延长有效期">
+            <option value="" selected disabled>延期…</option>
+            <option value="1">+1 天</option>
+            <option value="7">+7 天</option>
+            <option value="30">+30 天</option>
+            <option value="0">永久</option>
+          </select>
+        </form>
         <form method="post" action="/admin/links/{{ l.id }}/reset" class="form-inline">
           <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
           <input type="hidden" name="next" value="/admin/">
@@ -135,21 +221,36 @@
     var cards = document.querySelectorAll('.box-card');
     var visible = 0;
     for (var i = 0; i < cards.length; i++) {
-      var show = cards[i].getAttribute('data-email').toLowerCase().indexOf(q) !== -1;
+      var hay = (cards[i].getAttribute('data-email') + ' ' +
+                 cards[i].getAttribute('data-note')).toLowerCase();
+      var show = hay.indexOf(q) !== -1;
       cards[i].style.display = show ? '' : 'none';
       if (show) visible++;
     }
     noMatch.style.display = visible ? 'none' : 'block';
   });
-  // 新增链接表单展开/收起
-  var btn = document.getElementById('new-link-btn');
-  var form = document.getElementById('new-link-form');
-  btn.addEventListener('click', function () {
-    var open = form.style.display !== 'none';
-    form.style.display = open ? 'none' : 'block';
-    btn.textContent = open ? '+ 新增链接' : '收起';
-    if (!open) form.querySelector('select[name=email]').focus();
-  });
+  // 弹窗打开(关闭逻辑在 base.html:✕ / 遮罩点击)
+  function bindModal(btnId, modalId, focusSel) {
+    var btn = document.getElementById(btnId);
+    var modal = document.getElementById(modalId);
+    btn.addEventListener('click', function () {
+      modal.style.display = 'flex';
+      var f = modal.querySelector(focusSel);
+      if (f) f.focus();
+    });
+  }
+  // 备注编辑:prompt 输入,留空即清除
+  var noteForms = document.querySelectorAll('.note-form');
+  for (var j = 0; j < noteForms.length; j++) {
+    noteForms[j].addEventListener('submit', function (e) {
+      var field = this.querySelector('input[name=note]');
+      var v = prompt('备注(留空清除,最多 200 字):', field.value);
+      if (v === null) { e.preventDefault(); return; }
+      field.value = v;
+    });
+  }
+  bindModal('new-link-btn', 'new-link-modal', 'select[name=email]');
+  bindModal('add-box-btn', 'add-box-modal', 'input[name=local]');
 })();
 </script>
 {% endblock %}

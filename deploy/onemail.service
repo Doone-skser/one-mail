@@ -19,7 +19,8 @@ ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
-ReadWritePaths=/opt/onemail
+# /opt/onemail 写库和日志;mailboxes 路径用于添加邮箱时预建 Maildir(cur/new/tmp)
+ReadWritePaths=/opt/onemail /home/user-data/mail/mailboxes
 
 [Install]
 WantedBy=multi-user.target

@@ -102,6 +102,42 @@
   .ok { background: var(--success-bg); border: 1px solid var(--success-bg);
         color: var(--success); border-radius: var(--radius-sm);
         padding: 10px 14px; margin-bottom: 12px; font-size: 14px; word-break: break-all; }
+
+  /* ---------- 轻提示 toast(右上角,5s 自动消失) ---------- */
+  .toast-wrap { position: fixed; top: 64px; right: 16px; z-index: 1000;
+                display: flex; flex-direction: column; gap: 10px;
+                max-width: min(360px, 92vw); }
+  .toast { border-radius: var(--radius-sm); padding: 10px 14px; font-size: 14px;
+           box-shadow: var(--shadow-hover); word-break: break-all;
+           display: flex; gap: 10px; align-items: flex-start;
+           transition: opacity .3s, transform .3s; }
+  .toast-ok { background: var(--success-bg); color: var(--success); }
+  .toast-err { background: var(--warning-bg); color: var(--warning); }
+  .toast.hide { opacity: 0; transform: translateX(12px); }
+  .toast span { flex: 1; }
+  .toast-close { background: none; border: none; color: inherit; cursor: pointer;
+                 font-size: 13px; line-height: 1.5; padding: 0; opacity: .55; }
+  .toast-close:hover { opacity: 1; }
+
+  /* ---------- 弹窗 ---------- */
+  .modal-mask { position: fixed; inset: 0; background: rgba(17, 24, 39, .45);
+                z-index: 900; display: flex; align-items: flex-start;
+                justify-content: center; padding: 12vh 16px 16px; }
+  .modal { background: var(--card); border-radius: var(--radius);
+           box-shadow: var(--shadow-hover); padding: 24px;
+           width: 100%; max-width: 440px; }
+  .modal-head { display: flex; justify-content: space-between; align-items: center;
+                margin-bottom: 12px; }
+  .modal-head h2 { margin-bottom: 0; }
+  .modal-x { background: none; border: none; font-size: 16px; color: var(--text-2);
+             cursor: pointer; padding: 2px 6px; line-height: 1.4; }
+  .modal-x:hover { color: var(--text); }
+  .modal-actions { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; }
+  .result-text { font-family: var(--font-mono); font-size: 13px; word-break: break-all;
+                 background: var(--gray-soft); border-radius: var(--radius-sm);
+                 padding: 10px 12px; }
+  .modal select.modal-field { width: 100%; margin-bottom: 12px; padding: 8px 12px;
+                              font-size: 14px; }
   .badge { display: inline-block; border-radius: 999px; padding: 2px 10px;
            font-size: 12px; white-space: nowrap; }
   .badge-on { background: var(--success-bg); color: var(--success); }
@@ -213,6 +249,7 @@
   .box-head { display: flex; justify-content: space-between; align-items: center;
               gap: 10px; flex-wrap: wrap; }
   .box-email { font-size: 16px; font-weight: 600; font-family: var(--font-mono); }
+  .box-note { margin-top: 4px; font-size: 13px; color: var(--text-2); word-break: break-all; }
   .link-sub { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 10px; }
   .link-row { display: flex; justify-content: space-between; align-items: center;
               gap: 10px; flex-wrap: wrap; padding: 10px 0;
@@ -276,6 +313,24 @@ document.addEventListener('click', function (e) {
   var btn = e.target.closest('.copy-btn');
   if (!btn) return;
   copyText(btn.getAttribute('data-code'), btn);
+});
+// toast:5s 自动消失,也可点 ✕ 立即关闭
+document.querySelectorAll('.toast').forEach(function (t) {
+  var timer = setTimeout(dismiss, 5000);
+  function dismiss() {
+    clearTimeout(timer);
+    t.classList.add('hide');
+    setTimeout(function () { t.remove(); }, 350);
+  }
+  var x = t.querySelector('.toast-close');
+  if (x) x.addEventListener('click', dismiss);
+});
+// 弹窗:点 ✕ / 关闭按钮 / 遮罩空白处关闭
+document.addEventListener('click', function (e) {
+  var x = e.target.closest('.modal-x');
+  var mask = e.target.classList && e.target.classList.contains('modal-mask') ? e.target : null;
+  var m = x ? x.closest('.modal-mask') : mask;
+  if (m) m.style.display = 'none';
 });
 </script>
 </body>
