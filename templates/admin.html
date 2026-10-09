@@ -45,7 +45,7 @@
     <h2 class="font-semibold text-lg">邮箱创建成功</h2>
     <button class="modal-x btn btn-ghost btn-sm btn-circle absolute right-3 top-3"
             type="button" aria-label="关闭">✕</button>
-    <dl class="grid grid-cols-[3.5rem_1fr] gap-y-1 text-sm mt-3">
+    <dl class="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-y-1 text-sm mt-3">
       <dt class="text-base-content/60">邮箱</dt><dd class="break-all">{{ new_mailbox.email }}</dd>
       <dt class="text-base-content/60">密码</dt>
       <dd><code class="font-mono break-all">{{ new_mailbox.password }}</code></dd>
@@ -161,7 +161,7 @@
 {% endif %}
 
 {% macro ttl_select() %}
-<select name="ttl" class="select select-sm w-auto">
+<select name="ttl" class="select select-sm w-auto join-item" aria-label="重置后有效期">
   <option value="1">1 天</option>
   <option value="7" selected>7 天</option>
   <option value="30">30 天</option>
@@ -174,15 +174,17 @@
 <div class="card bg-base-100 shadow-sm mt-4 box-card"
      data-email="{{ b }}" data-note="{{ notes.get(b, '') }}">
   <div class="card-body">
-    <div class="flex justify-between items-center gap-3 flex-wrap">
-      <div>
-        <span class="font-mono font-semibold break-all">{{ b }}</span>
-        <span class="text-sm text-base-content/60 ml-2">{{ links | length }} 个链接</span>
+    <div class="flex justify-between items-start gap-3">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono font-semibold break-all">{{ b }}</span>
+          <span class="badge badge-sm badge-ghost">{{ links | length }} 个链接</span>
+        </div>
         {% if notes.get(b) %}
-        <div class="text-sm text-base-content/60 break-all mt-1">备注:{{ notes[b] }}</div>
+        <div class="text-sm text-base-content/60 wrap-anywhere mt-1">备注:{{ notes[b] }}</div>
         {% endif %}
       </div>
-      <form method="post" action="/admin/mailboxes/note" class="note-form">
+      <form method="post" action="/admin/mailboxes/note" class="note-form shrink-0">
         <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
         <input type="hidden" name="next" value="/admin/">
         <input type="hidden" name="email" value="{{ b }}">
@@ -191,18 +193,21 @@
       </form>
     </div>
 
-    <div class="border-t border-dashed border-base-300 mt-3 pt-1">
+    <div class="row-list border-t border-dashed border-base-300 mt-3">
       {% for l in links %}
-      <div class="flex justify-between items-center gap-3 flex-wrap max-sm:flex-col
-                  max-sm:items-start py-3 border-b border-base-200 last:border-b-0">
-        <div class="flex-1 min-w-55">
-          <span class="badge badge-sm {{ l.status_cls }}">{{ l.status }}</span>
-          <span class="text-sm text-base-content/60 ml-2">{{ l.remaining }}</span>
-          <div class="text-xs text-base-content/60 mt-1">
-            访问 {{ l.visits }} 次 · 最近 {{ l.last_visit_str }} · 创建于 {{ l.created_str }}
+      <div class="flex flex-col lg:flex-row lg:items-center gap-x-4 gap-y-2.5 py-3.5">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="badge badge-sm {{ l.status_cls }}">{{ l.status }}</span>
+            <span class="text-sm text-base-content/70">{{ l.remaining }}</span>
+          </div>
+          <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-base-content/60">
+            <span class="whitespace-nowrap">访问 {{ l.visits }} 次</span>
+            <span class="whitespace-nowrap">最近 {{ l.last_visit_str }}</span>
+            <span class="whitespace-nowrap">创建于 {{ l.created_str }}</span>
           </div>
         </div>
-        <div class="flex gap-1.5 flex-wrap items-center max-sm:w-full">
+        <div class="flex gap-1.5 flex-wrap items-center lg:justify-end">
           <button class="btn btn-sm" onclick="copyText('{{ l.url }}', this)">复制 URL</button>
           <a class="btn btn-sm" href="{{ l.url }}" target="_blank" rel="noopener noreferrer">打开 ↗</a>
           <a class="btn btn-sm" href="/admin/links/{{ l.id }}">日志</a>
@@ -218,12 +223,11 @@
               <option value="0">永久</option>
             </select>
           </form>
-          <form method="post" action="/admin/links/{{ l.id }}/reset"
-                class="inline-flex gap-1.5 items-center">
+          <form method="post" action="/admin/links/{{ l.id }}/reset" class="join">
             <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
             <input type="hidden" name="next" value="/admin/">
             {{ ttl_select() }}
-            <button class="btn btn-sm" type="submit"
+            <button class="btn btn-sm join-item" type="submit"
                     onclick="return confirm('重置后旧链接立即失效,确定?')">重置</button>
           </form>
           {% if not l.expired %}
@@ -231,16 +235,16 @@
             <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
             <input type="hidden" name="next" value="/admin/">
             {% if l.active %}
-            <button class="btn btn-sm btn-error" type="submit">撤销</button>
+            <button class="btn btn-sm btn-warning btn-soft" type="submit">撤销</button>
             {% else %}
-            <button class="btn btn-sm btn-primary" type="submit">启用</button>
+            <button class="btn btn-sm btn-primary btn-soft" type="submit">启用</button>
             {% endif %}
           </form>
           {% endif %}
           <form method="post" action="/admin/links/{{ l.id }}/delete">
             <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
             <input type="hidden" name="next" value="/admin/">
-            <button class="btn btn-sm btn-error" type="submit"
+            <button class="btn btn-sm btn-error btn-soft" type="submit"
                     onclick="return confirm('删除后该 URL 永久失效,访问记录也会一并清除,确定删除?')">删除</button>
           </form>
         </div>

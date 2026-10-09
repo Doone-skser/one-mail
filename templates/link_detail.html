@@ -11,20 +11,24 @@
 
 <div class="card bg-base-100 shadow-sm mt-4">
   <div class="card-body">
-    <h1 class="card-title text-xl">链接详情</h1>
-    <dl class="grid grid-cols-[5rem_1fr] gap-y-2 items-center text-sm mt-1">
+    <div class="flex items-center gap-2 flex-wrap">
+      <h1 class="card-title text-xl">链接详情</h1>
+      <span class="badge {{ link.status_cls }}">{{ link.status }}</span>
+    </div>
+    <dl class="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-3 gap-y-2.5 items-baseline text-sm mt-2">
       <dt class="text-base-content/60">绑定邮箱</dt>
-      <dd class="break-all">{{ link.email }}</dd>
+      <dd class="font-mono break-all">{{ link.email }}</dd>
       <dt class="text-base-content/60">链接</dt>
-      <dd class="break-all flex gap-2 items-center flex-wrap">
-        <a class="link link-hover" href="{{ link.url }}" target="_blank"
-           rel="noopener noreferrer">{{ link.url }}</a>
-        <button class="btn btn-sm" onclick="copyText('{{ link.url }}', this)">复制</button>
+      <dd>
+        <div class="font-mono text-xs break-all bg-base-200 rounded-lg px-3 py-2">{{ link.url }}</div>
+        <div class="flex gap-1.5 mt-2">
+          <button class="btn btn-sm" onclick="copyText('{{ link.url }}', this)">复制</button>
+          <a class="btn btn-sm" href="{{ link.url }}" target="_blank"
+             rel="noopener noreferrer">打开 ↗</a>
+        </div>
       </dd>
-      <dt class="text-base-content/60">状态</dt>
-      <dd><span class="badge badge-sm {{ link.status_cls }}">{{ link.status }}</span></dd>
       <dt class="text-base-content/60">有效期</dt><dd>{{ link.remaining }}</dd>
-      <dt class="text-base-content/60">创建时间</dt><dd>{{ link.created_str }}</dd>
+      <dt class="text-base-content/60">创建时间</dt><dd class="tabular-nums">{{ link.created_str }}</dd>
       <dt class="text-base-content/60">访问记录</dt><dd>{{ logs | length }} 条</dd>
     </dl>
   </div>
@@ -32,26 +36,22 @@
 
 <div class="card bg-base-100 shadow-sm mt-4">
   <div class="card-body">
-    <h2 class="card-title text-base">访问日志(最新在前)</h2>
-    <div class="overflow-x-auto">
-      <table class="table table-sm">
-        <thead>
-          <tr><th>时间</th><th>IP</th><th>User-Agent</th></tr>
-        </thead>
-        <tbody>
-          {% for log in logs %}
-          <tr>
-            <td class="whitespace-nowrap text-base-content/60">{{ log.ts }}</td>
-            <td class="whitespace-nowrap">{{ log.ip }}</td>
-            <td class="text-base-content/60 break-all">{{ log.ua }}</td>
-          </tr>
-          {% endfor %}
-          {% if not logs %}
-          <tr><td colspan="3" class="text-base-content/60">暂无访问记录</td></tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
+    <h2 class="card-title text-base">访问日志<span class="text-sm font-normal text-base-content/60">(最新在前)</span></h2>
+    {% if logs %}
+    <ul class="row-list">
+      {% for log in logs %}
+      <li class="py-2.5">
+        <div class="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
+          <span class="tabular-nums whitespace-nowrap text-base-content/60">{{ log.ts }}</span>
+          <span class="font-mono break-all">{{ log.ip }}</span>
+        </div>
+        <div class="text-xs text-base-content/50 wrap-anywhere mt-1">{{ log.ua }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-sm text-base-content/60 py-4 text-center">暂无访问记录</p>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

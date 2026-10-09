@@ -38,18 +38,18 @@
         <button class="btn btn-sm btn-primary btn-soft copy-btn" data-code="{{ m.code }}">复制</button>
       </div>
       <div class="flex gap-2 flex-wrap items-baseline mt-2 text-sm text-base-content/60">
-        <a class="link link-hover font-medium text-base-content"
+        <a class="link link-hover font-medium text-base-content min-w-0 wrap-anywhere"
            href="/m/{{ token }}/msg/{{ m.key | urlencode }}">{{ m.from }}</a>
-        <span class="hide-sm">{{ m.subject }}</span>
-        <time class="tabular-nums sm:ml-auto">{{ m.date }}</time>
+        <span class="hide-sm min-w-0 wrap-anywhere">{{ m.subject }}</span>
+        <time class="tabular-nums whitespace-nowrap sm:ml-auto">{{ m.date }}</time>
       </div>
       {% else %}
-      <a class="link link-hover font-medium" href="/m/{{ token }}/msg/{{ m.key | urlencode }}">
+      <a class="link link-hover font-medium wrap-anywhere pr-12" href="/m/{{ token }}/msg/{{ m.key | urlencode }}">
         {{ m.subject }}
       </a>
       <div class="flex gap-2 flex-wrap items-baseline mt-1 text-sm text-base-content/60">
-        <span>{{ m.from }}</span>
-        <time class="tabular-nums sm:ml-auto">{{ m.date }}</time>
+        <span class="min-w-0 wrap-anywhere">{{ m.from }}</span>
+        <time class="tabular-nums whitespace-nowrap sm:ml-auto">{{ m.date }}</time>
       </div>
       {% endif %}
     </div>

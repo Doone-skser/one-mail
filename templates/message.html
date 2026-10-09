@@ -16,8 +16,8 @@
 
 <div class="card bg-base-100 shadow-sm mt-4">
   <div class="card-body">
-    <h1 class="card-title text-xl break-all">{{ subject }}</h1>
-    <dl class="grid grid-cols-[4rem_1fr] gap-y-1 text-sm mt-1">
+    <h1 class="card-title text-xl wrap-anywhere">{{ subject }}</h1>
+    <dl class="grid grid-cols-[4rem_minmax(0,1fr)] gap-y-1.5 text-sm mt-1">
       <dt class="text-base-content/60">发件人</dt><dd class="break-all">{{ from_addr }}</dd>
       <dt class="text-base-content/60">收件人</dt><dd class="break-all">{{ to_addr }}</dd>
       <dt class="text-base-content/60">日期</dt><dd>{{ date }}</dd>
@@ -59,7 +59,7 @@
         <tbody>
           {% for i, fn, size in atts %}
           <tr>
-            <td class="break-all">{{ fn }}</td>
+            <td class="wrap-anywhere">{{ fn }}</td>
             <td class="whitespace-nowrap text-base-content/60">{{ size | fmt_size }}</td>
             <td class="text-right">
               <a class="btn btn-sm"

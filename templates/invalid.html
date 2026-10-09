@@ -12,7 +12,7 @@
     </svg>
     <h1 class="text-lg font-semibold mt-4">链接已被撤销</h1>
     <p class="text-sm text-base-content/60">
-      此取件链接已被管理员停用,无法继续访问{% if email %} {{ email }} 的收件箱{% endif %}。<br>
+      此取件链接已被管理员停用,无法继续访问{% if email %} <span class="wrap-anywhere">{{ email }}</span> 的收件箱{% endif %}。<br>
       如需访问,请联系管理员重新生成。
     </p>
     {% elif kind == 'notfound' %}
@@ -37,7 +37,7 @@
     </svg>
     <h1 class="text-lg font-semibold mt-4">链接已过期</h1>
     <p class="text-sm text-base-content/60">
-      这个取件链接已过有效期,无法继续访问{% if email %} {{ email }} 的收件箱{% endif %}。<br>
+      这个取件链接已过有效期,无法继续访问{% if email %} <span class="wrap-anywhere">{{ email }}</span> 的收件箱{% endif %}。<br>
       请联系管理员重新生成一个取件链接。
     </p>
     {% endif %}
