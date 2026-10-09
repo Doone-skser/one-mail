@@ -1,61 +1,79 @@
 {% extends "base.html" %}
-{% block container_class %} container-msg{% endblock %}
+{% block container_class %}max-w-4xl{% endblock %}
 {% block title %}{{ subject }}{% endblock %}
 {% block content %}
-<p style="margin-top:18px"><a href="/m/{{ token }}">← 返回列表</a></p>
+<p><a class="link link-hover text-sm" href="/m/{{ token }}">← 返回列表</a></p>
+
 {% if code %}
-<div class="card code-hero">
-  <div class="muted" style="font-size:13px">验证码</div>
-  <span class="code-big">{{ code }}</span>
-  <div><button class="btn btn-soft copy-btn" data-code="{{ code }}">复制验证码</button></div>
-</div>
-{% endif %}
-<div class="card">
-  <h1>{{ subject }}</h1>
-  <dl class="meta-dl">
-    <dt>发件人</dt><dd>{{ from_addr }}</dd>
-    <dt>收件人</dt><dd>{{ to_addr }}</dd>
-    <dt>日期</dt><dd>{{ date }}</dd>
-  </dl>
-</div>
-{% if html_body %}
-<div class="remote-bar">
-  {% if remote %}
-  <span>远端图片已加载</span>
-  <a class="btn btn-gray btn-sm" href="{{ request.path }}">点击屏蔽</a>
-  {% else %}
-  <span>远端图片未加载</span>
-  <a class="btn btn-soft btn-sm" href="{{ request.path }}?remote=1">点击加载</a>
-  {% endif %}
-</div>
-{% endif %}
-<div class="mail-body">
-  <div class="mail-body-content">
-  {% if text_body %}
-  <pre>{{ text_body }}</pre>
-  {% elif html_body %}
-  <iframe id="mailframe" class="htmlmail" sandbox="allow-same-origin"
-          srcdoc="{{ html_body }}" title="邮件正文"></iframe>
-  {% else %}
-  <p class="muted">(此邮件没有正文)</p>
-  {% endif %}
+<div class="card bg-base-100 shadow-sm mt-4">
+  <div class="card-body items-center text-center py-8">
+    <div class="text-sm text-base-content/60">验证码</div>
+    <span class="code-big code-hero-big">{{ code }}</span>
+    <button class="btn btn-primary btn-soft copy-btn mt-3" data-code="{{ code }}">复制验证码</button>
   </div>
 </div>
-{% if atts %}
-<div class="card">
-  <h2>附件({{ atts | length }})</h2>
-  <table>
-    {% for i, fn, size in atts %}
-    <tr>
-      <td>{{ fn }}</td>
-      <td class="muted" style="white-space:nowrap">{{ size | fmt_size }}</td>
-      <td style="text-align:right"><a class="btn btn-gray btn-sm"
-         href="/m/{{ token }}/msg/{{ key | urlencode }}/att/{{ i }}">下载</a></td>
-    </tr>
-    {% endfor %}
-  </table>
+{% endif %}
+
+<div class="card bg-base-100 shadow-sm mt-4">
+  <div class="card-body">
+    <h1 class="card-title text-xl break-all">{{ subject }}</h1>
+    <dl class="grid grid-cols-[4rem_1fr] gap-y-1 text-sm mt-1">
+      <dt class="text-base-content/60">发件人</dt><dd class="break-all">{{ from_addr }}</dd>
+      <dt class="text-base-content/60">收件人</dt><dd class="break-all">{{ to_addr }}</dd>
+      <dt class="text-base-content/60">日期</dt><dd>{{ date }}</dd>
+    </dl>
+  </div>
+</div>
+
+{% if html_body %}
+<div class="alert alert-soft mt-4 flex-row items-center justify-between gap-3 text-sm py-2">
+  {% if remote %}
+  <span>远端图片已加载</span>
+  <a class="btn btn-sm" href="{{ request.path }}">点击屏蔽</a>
+  {% else %}
+  <span>远端图片未加载</span>
+  <a class="btn btn-sm btn-primary btn-soft" href="{{ request.path }}?remote=1">点击加载</a>
+  {% endif %}
 </div>
 {% endif %}
+
+<div class="card bg-base-100 shadow-sm mt-4">
+  <div class="card-body">
+    {% if text_body %}
+    <pre class="mail-text">{{ text_body }}</pre>
+    {% elif html_body %}
+    <iframe id="mailframe" class="htmlmail" sandbox="allow-same-origin"
+            srcdoc="{{ html_body }}" title="邮件正文"></iframe>
+    {% else %}
+    <p class="text-sm text-base-content/60">(此邮件没有正文)</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if atts %}
+<div class="card bg-base-100 shadow-sm mt-4">
+  <div class="card-body">
+    <h2 class="card-title text-base">附件({{ atts | length }})</h2>
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <tbody>
+          {% for i, fn, size in atts %}
+          <tr>
+            <td class="break-all">{{ fn }}</td>
+            <td class="whitespace-nowrap text-base-content/60">{{ size | fmt_size }}</td>
+            <td class="text-right">
+              <a class="btn btn-sm"
+                 href="/m/{{ token }}/msg/{{ key | urlencode }}/att/{{ i }}">下载</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if html_body and not text_body %}
 <script>
 // iframe 高度自适应内容(allow-same-origin 下可读 contentDocument;量不到保持 70vh)

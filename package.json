@@ -1,0 +1,14 @@
+{
+  "name": "one-mail-ui",
+  "private": true,
+  "description": "仅用于构建 static/app.css(tailwind + daisyUI),运行时不需要 node",
+  "scripts": {
+    "build": "tailwindcss -i src/app.css -o static/app.css --minify",
+    "watch": "tailwindcss -i src/app.css -o static/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.14",
+    "daisyui": "^5.1.29",
+    "tailwindcss": "^4.1.14"
+  }
+}

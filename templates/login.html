@@ -1,16 +1,28 @@
 {% extends "base.html" %}
 {% block title %}管理员登录{% endblock %}
+{% block container_class %}max-w-md{% endblock %}
 {% block content %}
-<div class="card" style="max-width:400px; margin: 60px auto 0;">
-  <h1>管理员登录</h1>
-  {% if error %}<div class="alert">{{ error }}</div>{% endif %}
-  <form method="post">
-    <label>管理员邮箱</label>
-    <input type="email" name="email" required autofocus placeholder="admin@example.com">
-    <label>密码</label>
-    <input type="password" name="password" required>
-    <button class="btn" type="submit" style="width:100%">登录</button>
-  </form>
-  <p class="muted" style="margin-top:12px">使用邮件服务器管理员账号登录,会话有效期 12 小时。</p>
+<div class="card bg-base-100 shadow-sm mt-12">
+  <div class="card-body">
+    <h1 class="card-title text-xl">管理员登录</h1>
+    {% if error %}
+    <div role="alert" class="alert alert-warning alert-soft text-sm">{{ error }}</div>
+    {% endif %}
+    <form method="post" class="mt-2">
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">管理员邮箱</legend>
+        <input type="email" name="email" required autofocus placeholder="admin@example.com"
+               class="input w-full">
+      </fieldset>
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">密码</legend>
+        <input type="password" name="password" required class="input w-full">
+      </fieldset>
+      <button class="btn btn-primary w-full mt-4" type="submit">登录</button>
+    </form>
+    <p class="text-sm text-base-content/60 mt-3">
+      使用邮件服务器管理员账号登录,会话有效期 12 小时。
+    </p>
+  </div>
 </div>
 {% endblock %}

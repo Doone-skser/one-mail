@@ -1,39 +1,57 @@
 {% extends "base.html" %}
-{% block container_class %} container-wide{% endblock %}
+{% block container_class %}max-w-5xl{% endblock %}
 {% block title %}链接详情{% endblock %}
 {% block nav %}
-<a href="/admin/">邮箱列表</a>
-<a href="/admin/links">链接汇总</a>
-<a href="/admin/logout">登出</a>
+<a class="btn btn-ghost btn-sm" href="/admin/">邮箱列表</a>
+<a class="btn btn-ghost btn-sm" href="/admin/links">链接汇总</a>
+<a class="btn btn-ghost btn-sm" href="/admin/logout">登出</a>
 {% endblock %}
 {% block content %}
-<p style="margin-top:18px"><a href="/admin/links">← 返回链接汇总</a></p>
-<div class="card">
-  <h1>链接详情</h1>
-  <table class="header-meta">
-    <tr><td>绑定邮箱</td><td>{{ link.email }}</td></tr>
-    <tr><td>链接</td><td style="word-break:break-all"><a href="{{ link.url }}">{{ link.url }}</a>
-      <button class="btn btn-gray btn-sm" onclick="copyText('{{ link.url }}', this)">复制</button></td></tr>
-    <tr><td>状态</td><td><span class="badge {{ link.status_cls }}">{{ link.status }}</span></td></tr>
-    <tr><td>有效期</td><td>{{ link.remaining }}</td></tr>
-    <tr><td>创建时间</td><td>{{ link.created_str }}</td></tr>
-    <tr><td>访问记录</td><td>{{ logs | length }} 条</td></tr>
-  </table>
+<p><a class="link link-hover text-sm" href="/admin/links">← 返回链接汇总</a></p>
+
+<div class="card bg-base-100 shadow-sm mt-4">
+  <div class="card-body">
+    <h1 class="card-title text-xl">链接详情</h1>
+    <dl class="grid grid-cols-[5rem_1fr] gap-y-2 items-center text-sm mt-1">
+      <dt class="text-base-content/60">绑定邮箱</dt>
+      <dd class="break-all">{{ link.email }}</dd>
+      <dt class="text-base-content/60">链接</dt>
+      <dd class="break-all flex gap-2 items-center flex-wrap">
+        <a class="link link-hover" href="{{ link.url }}" target="_blank"
+           rel="noopener noreferrer">{{ link.url }}</a>
+        <button class="btn btn-sm" onclick="copyText('{{ link.url }}', this)">复制</button>
+      </dd>
+      <dt class="text-base-content/60">状态</dt>
+      <dd><span class="badge badge-sm {{ link.status_cls }}">{{ link.status }}</span></dd>
+      <dt class="text-base-content/60">有效期</dt><dd>{{ link.remaining }}</dd>
+      <dt class="text-base-content/60">创建时间</dt><dd>{{ link.created_str }}</dd>
+      <dt class="text-base-content/60">访问记录</dt><dd>{{ logs | length }} 条</dd>
+    </dl>
+  </div>
 </div>
-<div class="card">
-  <h2>访问日志(最新在前)</h2>
-  <div class="table-wrap">
-  <table>
-    <tr><th>时间</th><th>IP</th><th>User-Agent</th></tr>
-    {% for log in logs %}
-    <tr>
-      <td class="muted" style="white-space:nowrap">{{ log.ts }}</td>
-      <td style="white-space:nowrap">{{ log.ip }}</td>
-      <td class="muted">{{ log.ua }}</td>
-    </tr>
-    {% endfor %}
-    {% if not logs %}<tr><td colspan="3" class="muted">暂无访问记录</td></tr>{% endif %}
-  </table>
+
+<div class="card bg-base-100 shadow-sm mt-4">
+  <div class="card-body">
+    <h2 class="card-title text-base">访问日志(最新在前)</h2>
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <thead>
+          <tr><th>时间</th><th>IP</th><th>User-Agent</th></tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="whitespace-nowrap text-base-content/60">{{ log.ts }}</td>
+            <td class="whitespace-nowrap">{{ log.ip }}</td>
+            <td class="text-base-content/60 break-all">{{ log.ua }}</td>
+          </tr>
+          {% endfor %}
+          {% if not logs %}
+          <tr><td colspan="3" class="text-base-content/60">暂无访问记录</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 {% endblock %}

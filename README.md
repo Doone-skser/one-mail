@@ -16,7 +16,7 @@
 - **管理端**(`/admin/`,MIAB 管理员邮箱+密码登录)
   - 添加邮箱:调 MIAB API 建号 + 直接预建 Maildir(新邮箱取件链接立即可用),密码可留空自动生成
   - 邮箱卡片(仅显示有链接的邮箱)+ 实时搜索 + 新增链接(可选 1 天/7 天/30 天/永久)
-  - 行内操作:复制 URL、访问日志、延期(在当前到期时间上顺延 1/7/30 天或改永久,URL 不变)、重置(换 token)、撤销/启用、彻底删除、一键清除已撤销
+  - 行内操作:复制 URL、新窗口打开、访问日志、延期(在当前到期时间上顺延 1/7/30 天或改永久,URL 不变)、重置(换 token)、撤销/启用、彻底删除、一键清除已撤销
   - 每条链接的访问日志(时间/IP/UA,Asia/Shanghai 时区)
 
 ## 与同类项目的对比
@@ -34,15 +34,31 @@
 
 ## 技术栈
 
-Python 3.10+ / Flask 3 + gunicorn + sqlite3,纯 CSS + vanilla JS(无任何前端框架),只读解析 Maildir(`mailbox` 风格的 cur/new 目录直读)。界面截图可放在 `docs/` 下(本仓库未包含)。
+Python 3.10+ / Flask 3 + gunicorn + sqlite3,界面用 [daisyUI](https://daisyui.com/) 5 + Tailwind CSS 4,
+交互是 vanilla JS(无前端框架),只读解析 Maildir(`mailbox` 风格的 cur/new 目录直读)。
+界面截图可放在 `docs/` 下(本仓库未包含)。
+
+样式是**预编译**的:`static/app.css` 已随仓库提交,**服务器上不需要 node**,也不加载任何外部 CDN
+(CSP 保持 `default-src 'self'`)。只有改样式时才需要在本地重新编译:
+
+```bash
+npm install          # 仅开发依赖(tailwindcss / daisyui)
+npm run build        # src/app.css -> static/app.css(压缩)
+npm run watch        # 开发时监听改动
+```
+
+Tailwind 按需扫描 `templates/` 和 `app.py`(徽章状态类名写在 Python 里),改完模板记得重新 build。
 
 ## 目录结构
 
 ```
 one-mail/
 ├── app.py                  # 全部后端逻辑(单文件 Flask app)
+├── src/app.css             # 样式源文件(Tailwind + daisyUI 指令)
+├── static/app.css          # 编译产物,随仓库提交,线上直接用
+├── package.json            # 仅构建样式用,运行时不需要
 ├── templates/              # Jinja2 模板
-│   ├── base.html           # 设计令牌(CSS 变量)+ 全站样式 + 复制 JS
+│   ├── base.html           # 页面骨架(引入 app.css)+ 顶栏 + 复制/弹窗/toast JS
 │   ├── inbox.html          # 客户端收件箱(双 Tab + 轮询)
 │   ├── message.html        # 邮件详情(hero 验证码 + iframe 正文)
 │   ├── invalid.html        # 链接失效提示页(过期/撤销/不存在)
@@ -68,7 +84,7 @@ one-mail/
 
 ```bash
 # 1. 代码与依赖
-mkdir -p /opt/onemail && cp -r app.py templates /opt/onemail/
+mkdir -p /opt/onemail && cp -r app.py templates static /opt/onemail/
 apt-get install -y python3.10-venv
 python3 -m venv /opt/onemail/venv
 /opt/onemail/venv/bin/pip install -r requirements.txt

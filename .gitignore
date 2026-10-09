@@ -4,3 +4,4 @@ __pycache__/
 onemail.db
 secret_key
 security.log
+node_modules/

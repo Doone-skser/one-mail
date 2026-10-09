@@ -1,0 +1,78 @@
+/* OneMail 样式源文件 —— 用 npm run build 编译成 static/app.css。
+   运行时只需要编译产物,服务器上不需要 node。 */
+@import "tailwindcss";
+@source "../templates";
+/* 徽章状态类名(badge-success / badge-warning / …)写在 app.py 里,一并扫描 */
+@source "../app.py";
+
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+}
+
+/* 中文字体栈:daisyUI 默认字体对中文不友好 */
+@theme {
+  --font-sans: -apple-system, "PingFang SC", "Microsoft YaHei", "Helvetica Neue",
+               ui-sans-serif, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@layer components {
+  /* 验证码大字:等宽 + 等宽数字,拉开字距方便抄写 */
+  .code-big {
+    font-family: var(--font-mono);
+    font-size: 1.875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+  }
+  .code-hero-big {
+    display: block;
+    font-size: 2.75rem;
+    letter-spacing: 0.14em;
+  }
+  @media (width < 40rem) {
+    .code-big { font-size: 1.625rem; }
+    .code-hero-big { font-size: 2.125rem; }
+  }
+
+  /* 邮件正文 iframe:高度由 message.html 的脚本量完内容后设置 */
+  .htmlmail {
+    width: 100%;
+    min-height: 70vh;
+    border: none;
+    display: block;
+  }
+
+  /* 纯文本正文:保留换行,用正文字体而不是等宽 */
+  .mail-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.7;
+  }
+
+  /* 「自动更新中」的呼吸小绿点 */
+  .live-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--color-success);
+    flex: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .live-dot { animation: live-pulse 2.4s ease-in-out infinite; }
+  }
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.75); }
+  }
+}
+
+@layer utilities {
+  /* 窄屏隐藏次要表格列 */
+  @media (width < 40rem) {
+    .hide-sm { display: none; }
+  }
+}

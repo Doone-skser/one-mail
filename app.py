@@ -565,11 +565,11 @@ def link_view(row, host, now, visits=None, last_visit=None):
                            if last_visit else '—')
     d['expired'] = link_expired(row, now)
     if not row['active']:
-        d['status'], d['status_cls'] = '已撤销', 'badge-off'
+        d['status'], d['status_cls'] = '已撤销', 'badge-neutral badge-soft'
     elif d['expired']:
-        d['status'], d['status_cls'] = '已过期', 'badge-expired'
+        d['status'], d['status_cls'] = '已过期', 'badge-warning badge-soft'
     else:
-        d['status'], d['status_cls'] = '有效', 'badge-on'
+        d['status'], d['status_cls'] = '有效', 'badge-success badge-soft'
     d['remaining'] = remaining_str(row, now)
     return d
 
