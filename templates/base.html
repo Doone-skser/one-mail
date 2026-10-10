@@ -5,12 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}OneMail{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
 </head>
 <body class="bg-base-300 min-h-screen">
 {% block body %}
 <div class="navbar bg-base-100 border-b border-base-content/10 min-h-0 py-2">
   <div class="mx-auto w-full max-w-5xl px-4 flex items-center justify-between">
-    <a class="font-bold tracking-tight" href="/">One<span class="text-primary">Mail</span> 取件</a>
+    <a class="flex items-center gap-2 font-bold tracking-tight" href="/">
+      <img class="size-7 rounded-lg" src="{{ url_for('static', filename='logo.png') }}" alt="">
+      <span>One<span class="text-primary">Mail</span> 取件</span></a>
     <div class="flex items-center gap-1 text-sm">{% block nav %}{% endblock %}</div>
   </div>
 </div>

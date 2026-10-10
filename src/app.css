@@ -69,12 +69,6 @@
     @apply bg-primary text-primary-content shadow-md shadow-primary/20
            hover:bg-primary hover:text-primary-content;
   }
-  /* Logo:蓝色渐变方块 + 白色立方体线稿 */
-  .logo-mark {
-    @apply size-9 grid place-items-center rounded-xl text-white shadow-md shadow-primary/30
-           bg-linear-to-br from-sky-400 to-blue-700;
-  }
-
   /* 按钮/徽章文字永不折行,也不被 flex/表格挤窄(否则会变成一字一行) */
   .btn, .badge { white-space: nowrap; flex-shrink: 0; }
 
