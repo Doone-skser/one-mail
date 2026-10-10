@@ -14,15 +14,21 @@
 @plugin "daisyui/theme" {
   name: "dark";
   prefersdark: true;
-  --color-base-100: oklch(26.5% 0.015 255);
-  --color-base-200: oklch(22.5% 0.014 255);
-  --color-base-300: oklch(17.5% 0.012 255);
+  /* 深海军蓝底 + 亮蓝主色 */
+  --color-base-100: oklch(23.5% 0.032 262);
+  --color-base-200: oklch(19.5% 0.03 263);
+  --color-base-300: oklch(15.5% 0.026 264);
+  --color-base-content: oklch(95% 0.012 255);
+  --color-primary: oklch(62% 0.19 258);
+  --color-primary-content: oklch(98.5% 0.005 255);
 }
 @plugin "daisyui/theme" {
   name: "light";
   default: true;
-  --color-base-200: oklch(97% 0.004 255);
-  --color-base-300: oklch(94% 0.006 255);
+  --color-base-200: oklch(97% 0.006 255);
+  --color-base-300: oklch(94% 0.01 255);
+  --color-primary: oklch(55% 0.2 262);
+  --color-primary-content: oklch(98.5% 0.005 255);
 }
 
 /* 中文字体栈:daisyUI 默认字体对中文不友好 */
@@ -54,6 +60,21 @@
 }
 
 @layer components {
+  /* 管理端侧栏导航 */
+  .sidenav {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-base-content/70
+           transition-colors hover:bg-base-content/5 hover:text-base-content;
+  }
+  .sidenav-active {
+    @apply bg-primary text-primary-content shadow-md shadow-primary/20
+           hover:bg-primary hover:text-primary-content;
+  }
+  /* Logo:蓝色渐变方块 + 白色立方体线稿 */
+  .logo-mark {
+    @apply size-9 grid place-items-center rounded-xl text-white shadow-md shadow-primary/30
+           bg-linear-to-br from-sky-400 to-blue-700;
+  }
+
   /* 按钮/徽章文字永不折行,也不被 flex/表格挤窄(否则会变成一字一行) */
   .btn, .badge { white-space: nowrap; flex-shrink: 0; }
 

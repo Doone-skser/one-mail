@@ -1,12 +1,7 @@
-{% extends "base.html" %}
-{% block container_class %}max-w-5xl{% endblock %}
+{% extends "admin_base.html" %}
 {% block title %}邮箱管理{% endblock %}
-{% block nav %}
-<a class="btn btn-ghost btn-sm" href="/admin/">邮箱列表</a>
-<a class="btn btn-ghost btn-sm" href="/admin/links">链接汇总</a>
-<a class="btn btn-ghost btn-sm" href="/admin/logout">登出</a>
-{% endblock %}
 {% block content %}
+{% from "_icons.html" import icon %}
 {% include "_toast.html" %}
 
 {% if new_url %}
@@ -49,17 +44,20 @@
 </div>
 {% endif %}
 
-<div class="flex gap-2 items-center flex-wrap">
-  <input type="text" id="box-search" placeholder="搜索邮箱地址或备注…"
-         aria-label="搜索邮箱地址或备注" class="input flex-1 min-w-50">
-  <button class="btn btn-primary" id="new-link-btn" type="button">+ 新增链接</button>
-  <button class="btn" id="add-box-btn" type="button">+ 添加邮箱</button>
+<div class="flex gap-2.5 items-center flex-wrap">
+  <label class="input flex-1 min-w-56">
+    {{ icon('search', 'size-4 opacity-50') }}
+    <input type="search" id="box-search" placeholder="搜索邮箱地址或备注…"
+           aria-label="搜索邮箱地址或备注" class="grow">
+  </label>
+  <button class="btn btn-primary" id="new-link-btn" type="button">{{ icon('plus') }}新增链接</button>
+  <button class="btn" id="add-box-btn" type="button">{{ icon('plus-circle') }}添加邮箱</button>
   {% if revoked_count %}
   <form method="post" action="/admin/links/clear-revoked">
     <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
     <input type="hidden" name="next" value="/admin/">
-    <button class="btn" type="submit"
-            onclick="return confirm('将彻底删除全部 {{ revoked_count }} 条已撤销链接及其访问记录,确定?')">清除已撤销({{ revoked_count }})</button>
+    <button class="btn" type="submit" title="彻底删除全部已撤销链接"
+            onclick="return confirm('将彻底删除全部 {{ revoked_count }} 条已撤销链接及其访问记录,确定?')">{{ icon('trash') }}清除已撤销({{ revoked_count }})</button>
   </form>
   {% endif %}
 </div>
@@ -129,7 +127,7 @@
   </div>
 </div>
 
-<div class="card bg-base-100 shadow-sm mt-4 hidden" id="no-match">
+<div class="card bg-base-100 mt-4 hidden" id="no-match">
   <div class="card-body items-center text-center py-8">
     <h1 class="text-lg font-semibold">没有匹配的邮箱</h1>
     <p class="text-sm text-base-content/60">换个关键词试试。</p>
@@ -145,92 +143,101 @@
 </div>
 {% endif %}
 
+{# 头像渐变色按首字母轮换(类名写全,Tailwind 才扫描得到) #}
+{% set avatar_bg = ['from-indigo-500 to-blue-600', 'from-sky-500 to-blue-600',
+                    'from-violet-500 to-indigo-600', 'from-blue-500 to-cyan-600',
+                    'from-blue-600 to-indigo-700', 'from-cyan-500 to-sky-600'] %}
+<div class="flex flex-col gap-3 mt-4">
 {% for b in boxes %}
 {% set links = links_by_email.get(b, []) %}
-<div class="card bg-base-100 shadow-sm mt-4 box-card overflow-hidden"
+<div class="card bg-base-100 box-card hover:border-primary/40 transition-colors"
      data-email="{{ b }}" data-note="{{ notes.get(b, '') }}">
-  {# 卡片头:浅一档底色 + 分隔线,和下方链接行区分开 #}
-  <div class="flex justify-between items-center gap-3 px-5 py-3 bg-base-200 border-b border-base-content/10">
-    <div class="flex items-start gap-3 min-w-0">
-      <div class="size-8 shrink-0 rounded-lg bg-primary/15 text-primary grid place-items-center
-                  font-semibold uppercase" aria-hidden="true">{{ b[0] }}</div>
-      <div class="min-w-0">
-        <div class="flex items-center gap-x-2 gap-y-1 flex-wrap">
-          <span class="font-mono font-semibold break-all">{{ b }}</span>
-          {% if notes.get(b) %}
-          {# 备注不用 .badge:徽章禁止折行,长备注会撑破卡片 #}
-          <span class="text-sm font-medium text-secondary bg-secondary/10 rounded-md px-2 py-0.5
-                       wrap-anywhere box-decoration-clone">{{ notes[b] }}</span>
-          {% endif %}
-          <span class="text-xs text-base-content/50 whitespace-nowrap">{{ links | length }} 个链接</span>
+  <div class="flex gap-4 px-4 py-3.5 sm:px-5">
+    <div class="size-11 sm:size-12 shrink-0 rounded-full grid place-items-center text-lg font-semibold text-white
+                bg-linear-to-br shadow-md shadow-primary/20
+                {{ avatar_bg['abcdefghijklmnopqrstuvwxyz0123456789'.find(b[0] | lower) % 6] }}"
+         aria-hidden="true">{{ b[0] | upper }}</div>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-x-2 gap-y-1 flex-wrap">
+        <span class="font-semibold text-[15px] break-all">{{ b }}</span>
+        {% if notes.get(b) %}
+        {# 备注不用 .badge:徽章禁止折行,长备注会撑破卡片 #}
+        <span class="text-sm font-medium text-secondary bg-secondary/10 rounded-md px-2 py-0.5
+                     wrap-anywhere box-decoration-clone">{{ notes[b] }}</span>
+        {% endif %}
+        <span class="badge badge-sm border-0 bg-base-content/10 text-base-content/70">{{ links | length }} 个链接</span>
+        <form method="post" action="/admin/mailboxes/note" class="note-form">
+          <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+          <input type="hidden" name="next" value="/admin/">
+          <input type="hidden" name="email" value="{{ b }}">
+          <input type="hidden" name="note" value="{{ notes.get(b, '') }}">
+          <button class="btn btn-ghost btn-xs btn-square text-base-content/50" type="submit"
+                  title="{{ '编辑备注' if notes.get(b) else '添加备注' }}"
+                  aria-label="{{ '编辑备注' if notes.get(b) else '添加备注' }}">{{ icon('pencil', 'size-3.5') }}</button>
+        </form>
+      </div>
+
+      <div class="row-list">
+        {% for l in links %}
+        <div class="flex flex-col xl:flex-row xl:items-center gap-x-4 gap-y-2.5 py-2.5 first:pt-1.5 last:pb-0.5">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="badge badge-sm {{ l.status_cls }}">{{ l.status }}</span>
+              <span class="text-sm text-base-content/80">{{ l.remaining }}</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-base-content/55">
+              <span class="inline-flex items-center gap-1 whitespace-nowrap">{{ icon('clock', 'size-3.5') }}创建于 {{ l.created_str }}</span>
+              <span class="text-base-content/20 max-sm:hidden" aria-hidden="true">|</span>
+              <span class="inline-flex items-center gap-1 whitespace-nowrap">{{ icon('calendar', 'size-3.5') }}{% if l.expires_str %}过期于 {{ l.expires_str }}{% else %}永不过期{% endif %}</span>
+              <span class="text-base-content/20 max-sm:hidden" aria-hidden="true">|</span>
+              <span class="inline-flex items-center gap-1 whitespace-nowrap">{{ icon('eye', 'size-3.5') }}访问 {{ l.visits }} 次 · 最近 {{ l.last_visit_str }}</span>
+            </div>
+          </div>
+          <div class="flex gap-2 flex-wrap items-center xl:justify-end">
+            <button class="btn btn-sm" onclick="copyText('{{ l.url }}', this)">{{ icon('copy', 'size-3.5') }}复制 URL</button>
+            <a class="btn btn-sm" href="{{ l.url }}" target="_blank" rel="noopener noreferrer">打开{{ icon('external', 'size-3.5') }}</a>
+            <a class="btn btn-sm" href="/admin/links/{{ l.id }}">日志</a>
+            <details class="dropdown dropdown-end">
+              <summary class="btn btn-sm">更多{{ icon('chevron-down', 'size-3.5') }}</summary>
+              <form method="post" action="/admin/links/{{ l.id }}/extend"
+                    class="dropdown-content z-20 mt-1 w-40 rounded-box border border-base-content/10 bg-base-100 p-1.5 shadow-xl">
+                <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+                <input type="hidden" name="next" value="/admin/">
+                <ul class="menu menu-sm w-full p-0">
+                  <li class="menu-title">延期</li>
+                  <li><button type="submit" name="ttl" value="1">+1 天</button></li>
+                  <li><button type="submit" name="ttl" value="7">+7 天</button></li>
+                  <li><button type="submit" name="ttl" value="30">+30 天</button></li>
+                  <li><button type="submit" name="ttl" value="0">改为永久</button></li>
+                </ul>
+              </form>
+            </details>
+            {% if not l.expired %}
+            <form method="post" action="/admin/links/{{ l.id }}/toggle">
+              <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+              <input type="hidden" name="next" value="/admin/">
+              {% if l.active %}
+              <button class="btn btn-sm btn-warning btn-soft" type="submit">{{ icon('ban', 'size-3.5') }}撤销</button>
+              {% else %}
+              <button class="btn btn-sm btn-success btn-soft" type="submit">{{ icon('check', 'size-3.5') }}启用</button>
+              {% endif %}
+            </form>
+            {% endif %}
+            <form method="post" action="/admin/links/{{ l.id }}/delete">
+              <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+              <input type="hidden" name="next" value="/admin/">
+              <button class="btn btn-sm btn-error btn-soft" type="submit"
+                      onclick="return confirm('删除后该 URL 永久失效,访问记录也会一并清除,确定删除?')">{{ icon('trash', 'size-3.5') }}删除</button>
+            </form>
+          </div>
         </div>
+        {% endfor %}
       </div>
     </div>
-    <form method="post" action="/admin/mailboxes/note" class="note-form shrink-0">
-      <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
-      <input type="hidden" name="next" value="/admin/">
-      <input type="hidden" name="email" value="{{ b }}">
-      <input type="hidden" name="note" value="{{ notes.get(b, '') }}">
-      <button class="btn btn-sm" type="submit">{{ '编辑备注' if notes.get(b) else '添加备注' }}</button>
-    </form>
-  </div>
-
-  <div class="row-list">
-      {% for l in links %}
-      <div class="flex flex-col lg:flex-row lg:items-center gap-x-4 gap-y-2.5 px-5 py-3.5
-                  hover:bg-base-content/[.025] transition-colors">
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="badge badge-sm {{ l.status_cls }}">{{ l.status }}</span>
-            <span class="text-sm text-base-content/70">{{ l.remaining }}</span>
-          </div>
-          <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-base-content/60">
-            <span class="whitespace-nowrap">访问 {{ l.visits }} 次</span>
-            <span class="whitespace-nowrap">最近 {{ l.last_visit_str }}</span>
-            <span class="whitespace-nowrap">创建于 {{ l.created_str }}</span>
-          </div>
-        </div>
-        <div class="flex gap-1.5 flex-wrap items-center lg:justify-end">
-          <div class="join">
-            <button class="btn btn-sm join-item" onclick="copyText('{{ l.url }}', this)">复制 URL</button>
-            <a class="btn btn-sm join-item" href="{{ l.url }}" target="_blank" rel="noopener noreferrer">打开 ↗</a>
-            <a class="btn btn-sm join-item" href="/admin/links/{{ l.id }}">日志</a>
-          </div>
-          <form method="post" action="/admin/links/{{ l.id }}/extend">
-            <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
-            <input type="hidden" name="next" value="/admin/">
-            <select name="ttl" onchange="this.form.submit()" aria-label="延长有效期"
-                    class="select select-sm w-auto">
-              <option value="" selected disabled>延期…</option>
-              <option value="1">+1 天</option>
-              <option value="7">+7 天</option>
-              <option value="30">+30 天</option>
-              <option value="0">永久</option>
-            </select>
-          </form>
-          {% if not l.expired %}
-          <form method="post" action="/admin/links/{{ l.id }}/toggle">
-            <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
-            <input type="hidden" name="next" value="/admin/">
-            {% if l.active %}
-            <button class="btn btn-sm btn-warning btn-soft" type="submit">撤销</button>
-            {% else %}
-            <button class="btn btn-sm btn-primary btn-soft" type="submit">启用</button>
-            {% endif %}
-          </form>
-          {% endif %}
-          <form method="post" action="/admin/links/{{ l.id }}/delete">
-            <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
-            <input type="hidden" name="next" value="/admin/">
-            <button class="btn btn-sm btn-error btn-soft" type="submit"
-                    onclick="return confirm('删除后该 URL 永久失效,访问记录也会一并清除,确定删除?')">删除</button>
-          </form>
-        </div>
-      </div>
-      {% endfor %}
   </div>
 </div>
 {% endfor %}
+</div>
 
 <script>
 // 邮箱卡片实时过滤(纯前端,不区分大小写)

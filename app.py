@@ -571,6 +571,8 @@ def link_view(row, host, now, visits=None, last_visit=None):
     else:
         d['status'], d['status_cls'] = '有效', 'badge-success badge-soft'
     d['remaining'] = remaining_str(row, now)
+    d['expires_str'] = (datetime.fromtimestamp(row['expires_at'], TZ).strftime('%Y-%m-%d %H:%M')
+                        if row['expires_at'] is not None else '')
     return d
 
 

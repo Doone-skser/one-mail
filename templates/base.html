@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 </head>
 <body class="bg-base-300 min-h-screen">
+{% block body %}
 <div class="navbar bg-base-100 border-b border-base-content/10 min-h-0 py-2">
   <div class="mx-auto w-full max-w-5xl px-4 flex items-center justify-between">
     <a class="font-bold tracking-tight" href="/">One<span class="text-primary">Mail</span> 取件</a>
@@ -16,6 +17,7 @@
 <div class="mx-auto w-full {% block container_class %}max-w-3xl{% endblock %} px-4 pt-6 pb-12">
   {% block content %}{% endblock %}
 </div>
+{% endblock %}
 <script>
 function copyText(t, btn) {
   function feedback() {
@@ -57,6 +59,12 @@ document.querySelectorAll('.toast-item').forEach(function (t) {
   }
   var x = t.querySelector('.toast-close');
   if (x) x.addEventListener('click', dismiss);
+});
+// details 下拉菜单:点外面 / 选完后收起
+document.addEventListener('click', function (e) {
+  document.querySelectorAll('details.dropdown[open]').forEach(function (d) {
+    if (!d.contains(e.target)) d.removeAttribute('open');
+  });
 });
 // 弹窗:点 ✕ / 关闭按钮 / 遮罩空白处关闭(daisyUI 用 modal-open 控制显隐)
 document.addEventListener('click', function (e) {

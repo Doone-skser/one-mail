@@ -1,0 +1,58 @@
+{# 管理端布局:左侧栏(≥lg) + 顶栏;窄屏侧栏隐藏,导航放到顶栏 #}
+{% extends "base.html" %}
+{% block body %}
+{% from "_icons.html" import icon %}
+{% set on_links = request.path.startswith('/admin/links') %}
+<div class="min-h-screen lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+  <aside class="hidden lg:flex flex-col sticky top-0 h-screen bg-base-200 border-r border-base-content/10 px-3 py-4">
+    <a class="flex items-center gap-2.5 px-2 mb-7" href="/admin/">
+      <span class="logo-mark">{{ icon('box', 'size-5') }}</span>
+      <span class="text-lg font-bold tracking-tight">One<span class="text-primary">Mail</span> 取件</span>
+    </a>
+    <nav class="flex flex-col gap-1" aria-label="管理导航">
+      <a class="sidenav{% if not on_links %} sidenav-active{% endif %}" href="/admin/"
+         {% if not on_links %}aria-current="page"{% endif %}>{{ icon('list') }}邮箱列表</a>
+      <a class="sidenav{% if on_links %} sidenav-active{% endif %}" href="/admin/links"
+         {% if on_links %}aria-current="page"{% endif %}>{{ icon('chart') }}链接汇总</a>
+    </nav>
+    <div class="mt-auto border-t border-base-content/10 pt-4 px-2 text-xs">
+      <div class="flex items-center gap-2 text-base-content/70"><span class="live-dot"></span>服务运行中</div>
+      <div class="admin-clock tabular-nums text-base-content/50 mt-1.5"></div>
+    </div>
+  </aside>
+
+  <div class="min-w-0">
+    <header class="sticky top-0 z-30 flex items-center justify-between gap-2 h-14 px-4 lg:px-8
+                   bg-base-100/85 backdrop-blur border-b border-base-content/10">
+      <a class="flex items-center gap-2 lg:invisible" href="/admin/">
+        <span class="logo-mark size-7">{{ icon('box', 'size-4') }}</span>
+        <span class="font-bold tracking-tight max-sm:hidden">One<span class="text-primary">Mail</span> 取件</span>
+      </a>
+      <nav class="flex items-center gap-1 text-sm">
+        <a class="btn btn-ghost btn-sm lg:hidden{% if not on_links %} text-primary{% endif %}" href="/admin/">
+          {{ icon('list') }}<span class="max-sm:hidden">邮箱列表</span></a>
+        <a class="btn btn-ghost btn-sm lg:hidden{% if on_links %} text-primary{% endif %}" href="/admin/links">
+          {{ icon('chart') }}<span class="max-sm:hidden">链接汇总</span></a>
+        <a class="btn btn-ghost btn-sm" href="/admin/logout">{{ icon('logout') }}退出</a>
+      </nav>
+    </header>
+    <main class="mx-auto w-full {% block container_class %}max-w-7xl{% endblock %} px-4 lg:px-8 pt-6 pb-12">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<script>
+// 侧栏底部时钟
+(function () {
+  var el = document.querySelector('.admin-clock');
+  if (!el) return;
+  function pad(n) { return n < 10 ? '0' + n : n; }
+  function tick() {
+    var d = new Date();
+    el.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+                     pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+  tick(); setInterval(tick, 1000);
+})();
+</script>
+{% endblock %}
