@@ -7,22 +7,7 @@
 <a class="btn btn-ghost btn-sm" href="/admin/logout">登出</a>
 {% endblock %}
 {% block content %}
-{% if flash_msg or flash_err %}
-<div class="toast toast-top toast-end z-50">
-  {% if flash_msg %}
-  <div role="alert" class="toast-item alert alert-success alert-soft transition-opacity duration-300">
-    <span class="break-all">{{ flash_msg }}</span>
-    <button class="toast-close btn btn-ghost btn-xs" type="button" aria-label="关闭">✕</button>
-  </div>
-  {% endif %}
-  {% if flash_err %}
-  <div role="alert" class="toast-item alert alert-warning alert-soft transition-opacity duration-300">
-    <span class="break-all">{{ flash_err }}</span>
-    <button class="toast-close btn btn-ghost btn-xs" type="button" aria-label="关闭">✕</button>
-  </div>
-  {% endif %}
-</div>
-{% endif %}
+{% include "_toast.html" %}
 
 {% if new_url %}
 <div class="modal modal-open" role="dialog">
@@ -160,15 +145,6 @@
 </div>
 {% endif %}
 
-{% macro ttl_select() %}
-<select name="ttl" class="select select-sm w-auto join-item" aria-label="重置后有效期">
-  <option value="1">1 天</option>
-  <option value="7" selected>7 天</option>
-  <option value="30">30 天</option>
-  <option value="0">永久</option>
-</select>
-{% endmacro %}
-
 {% for b in boxes %}
 {% set links = links_by_email.get(b, []) %}
 <div class="card bg-base-100 shadow-sm mt-4 box-card"
@@ -178,11 +154,13 @@
       <div class="min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
           <span class="font-mono font-semibold break-all">{{ b }}</span>
+          {% if notes.get(b) %}
+          {# 备注不用 .badge:徽章禁止折行,长备注会撑破卡片 #}
+          <span class="text-sm font-medium text-secondary bg-secondary/10 rounded-md px-2 py-0.5
+                       wrap-anywhere box-decoration-clone">{{ notes[b] }}</span>
+          {% endif %}
           <span class="badge badge-sm badge-ghost">{{ links | length }} 个链接</span>
         </div>
-        {% if notes.get(b) %}
-        <div class="text-sm text-base-content/60 wrap-anywhere mt-1">备注:{{ notes[b] }}</div>
-        {% endif %}
       </div>
       <form method="post" action="/admin/mailboxes/note" class="note-form shrink-0">
         <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
@@ -222,13 +200,6 @@
               <option value="30">+30 天</option>
               <option value="0">永久</option>
             </select>
-          </form>
-          <form method="post" action="/admin/links/{{ l.id }}/reset" class="join">
-            <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
-            <input type="hidden" name="next" value="/admin/">
-            {{ ttl_select() }}
-            <button class="btn btn-sm join-item" type="submit"
-                    onclick="return confirm('重置后旧链接立即失效,确定?')">重置</button>
           </form>
           {% if not l.expired %}
           <form method="post" action="/admin/links/{{ l.id }}/toggle">

@@ -1,0 +1,17 @@
+{# 操作结果提示(admin / links 共用);自动消失逻辑在 base.html #}
+{% if flash_msg or flash_err %}
+<div class="toast toast-top toast-end z-50">
+  {% if flash_msg %}
+  <div role="alert" class="toast-item alert alert-success alert-soft transition-opacity duration-300">
+    <span class="break-all">{{ flash_msg }}</span>
+    <button class="toast-close btn btn-ghost btn-xs" type="button" aria-label="关闭">✕</button>
+  </div>
+  {% endif %}
+  {% if flash_err %}
+  <div role="alert" class="toast-item alert alert-warning alert-soft transition-opacity duration-300">
+    <span class="break-all">{{ flash_err }}</span>
+    <button class="toast-close btn btn-ghost btn-xs" type="button" aria-label="关闭">✕</button>
+  </div>
+  {% endif %}
+</div>
+{% endif %}

@@ -16,7 +16,7 @@
 - **管理端**(`/admin/`,MIAB 管理员邮箱+密码登录)
   - 添加邮箱:调 MIAB API 建号 + 直接预建 Maildir(新邮箱取件链接立即可用),密码可留空自动生成
   - 邮箱卡片(仅显示有链接的邮箱)+ 实时搜索 + 新增链接(可选 1 天/7 天/30 天/永久)
-  - 行内操作:复制 URL、新窗口打开、访问日志、延期(在当前到期时间上顺延 1/7/30 天或改永久,URL 不变)、重置(换 token)、撤销/启用、彻底删除、一键清除已撤销
+  - 行内操作:复制 URL、新窗口打开、访问日志、延期(在当前到期时间上顺延 1/7/30 天或改永久,URL 不变)、撤销/启用、彻底删除、一键清除已撤销
   - 每条链接的访问日志(时间/IP/UA,Asia/Shanghai 时区)
 
 ## 与同类项目的对比
@@ -120,7 +120,7 @@ fail2ban-client reload
 | `MIAB_ADD_API` | `.../admin/mail/users/add` | 添加邮箱 API(成功后直接预建 Maildir,需 systemd `ReadWritePaths` 放行 mailboxes 目录) |
 | `MASKED_MAILBOXES` | `{"masked@example.com"}` | 失效提示页上打码显示的邮箱集合(如 `ma**@example.com`);链接有效时始终显示完整地址 |
 | `PER_PAGE` | `20` | 收件箱每页封数 |
-| `TTL_CHOICES` | 1/7/30 天、永久 | 生成/重置链接时的有效期选项 |
+| `TTL_CHOICES` | 1/7/30 天、永久 | 生成/延期链接时的有效期选项 |
 | `LOG_THROTTLE_SEC` | `60` | 同一链接列表页访问日志节流秒数 |
 | `LOGIN_FAIL_*` / `TOKEN404_*` | 5 次/10 分钟锁 15 分钟;20 次/分钟 → 429 | 登录防爆破、token 防枚举 |
 | `DEV_HOST` / `DEV_PORT` | `127.0.0.1:8200` | 仅 `python app.py` 调试用;生产监听地址在 `deploy/onemail.service` 的 gunicorn `-b` 参数里 |

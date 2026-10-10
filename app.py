@@ -1136,31 +1136,6 @@ def admin_extend(lid):
     return redirect(_safe_next())
 
 
-@app.route('/admin/links/<int:lid>/reset', methods=['POST'])
-def admin_reset(lid):
-    """重置:换新 token(旧 URL 立即失效),有效期按所选时长从当前重新计时,
-    并恢复为启用状态。"""
-    r = admin_required()
-    if r:
-        return r
-    db = get_db()
-    link = db.execute('SELECT * FROM links WHERE id = ?', (lid,)).fetchone()
-    if link is None:
-        abort(404)
-    try:
-        expires = calc_expires(request.form.get('ttl', '0'))
-    except ValueError:
-        abort(400)
-    token = _new_token(db)
-    db.execute(
-        'UPDATE links SET token = ?, created_at = ?, expires_at = ?, active = 1'
-        ' WHERE id = ?',
-        (token, time.time(), expires, lid))
-    db.commit()
-    session['new_url'] = 'https://%s/m/%s' % (request.host, token)
-    return redirect(_safe_next())
-
-
 @app.route('/admin/links')
 def admin_links():
     r = admin_required()
@@ -1175,8 +1150,9 @@ def admin_links():
     now = time.time()
     links = [link_view(row, request.host, now, row['visits'], row['last_visit'])
              for row in rows]
-    new_url = session.pop('new_url', None)
-    return render_template('links.html', links=links, new_url=new_url)
+    return render_template('links.html', links=links,
+                           flash_msg=session.pop('flash_msg', None),
+                           flash_err=session.pop('flash_err', None))
 
 
 @app.route('/admin/links/<int:lid>/toggle', methods=['POST'])
@@ -1189,7 +1165,7 @@ def admin_toggle(lid):
     if link is None:
         abort(404)
     if link_expired(link):
-        # 已过期的链接不能再启用/撤销,只能重置
+        # 已过期的链接不能再启用/撤销,先延期
         return redirect(_safe_next())
     db.execute('UPDATE links SET active = 1 - active WHERE id = ?', (lid,))
     db.commit()
