@@ -12,7 +12,8 @@
             type="button" aria-label="关闭">✕</button>
     <p class="font-mono text-sm break-all bg-base-200 rounded-lg p-3 mt-3">{{ new_url }}</p>
     <div class="modal-action">
-      <button class="btn btn-primary copy-btn" data-code="{{ new_url }}">复制链接</button>
+      <button class="btn btn-primary copy-btn" data-code="{{ new_url }}">{{ icon('copy', 'size-4') }}复制链接</button>
+      <a class="btn" href="{{ new_url }}" target="_blank" rel="noopener noreferrer">新页面打开{{ icon('external', 'size-4') }}</a>
       <button class="modal-x btn" type="button">关闭</button>
     </div>
   </div>
@@ -25,19 +26,38 @@
     <h2 class="font-semibold text-lg">邮箱创建成功</h2>
     <button class="modal-x btn btn-ghost btn-sm btn-circle absolute right-3 top-3"
             type="button" aria-label="关闭">✕</button>
-    <dl class="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-y-1 text-sm mt-3">
-      <dt class="text-base-content/60">邮箱</dt><dd class="break-all">{{ new_mailbox.email }}</dd>
+    <dl class="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-2 gap-y-3 items-center text-sm mt-4">
+      <dt class="text-base-content/60">邮箱</dt>
+      <dd class="flex items-center gap-2">
+        <span class="font-mono break-all flex-1">{{ new_mailbox.email }}</span>
+        <button class="btn btn-xs copy-btn" data-code="{{ new_mailbox.email }}">复制</button>
+      </dd>
       <dt class="text-base-content/60">密码</dt>
-      <dd><code class="font-mono break-all">{{ new_mailbox.password }}</code></dd>
+      <dd class="flex items-center gap-2">
+        <code class="font-mono break-all flex-1">{{ new_mailbox.password }}</code>
+        <button class="btn btn-xs copy-btn" data-code="{{ new_mailbox.password }}">复制</button>
+      </dd>
+      {% if new_mailbox.url %}
+      <dt class="text-base-content/60 self-start pt-2">取件链接</dt>
+      <dd>
+        <div class="font-mono text-xs break-all bg-base-200 rounded-lg px-3 py-2">{{ new_mailbox.url }}</div>
+        <div class="flex items-center flex-wrap gap-2 mt-2">
+          <button class="btn btn-sm btn-primary copy-btn" data-code="{{ new_mailbox.url }}">{{ icon('copy', 'size-3.5') }}复制链接</button>
+          <a class="btn btn-sm" href="{{ new_mailbox.url }}" target="_blank"
+             rel="noopener noreferrer">新页面打开{{ icon('external', 'size-3.5') }}</a>
+          <span class="text-xs text-base-content/50 ml-auto whitespace-nowrap">
+            {{ '永久有效' if new_mailbox.ttl == '0' else '有效期 %s 天' % new_mailbox.ttl }}</span>
+        </div>
+      </dd>
+      {% endif %}
     </dl>
     {% if not new_mailbox.ready %}
     <div role="alert" class="alert alert-warning alert-soft text-sm mt-3">
       Maildir 预建失败,首次收信或登录后取件链接才可用。
     </div>
     {% endif %}
-    <p class="text-sm text-base-content/60 mt-3">密码仅在此显示一次,请立即保存。</p>
+    <div role="alert" class="alert alert-warning alert-soft text-sm mt-4">密码仅在此显示一次,请立即保存。</div>
     <div class="modal-action">
-      <button class="btn btn-primary copy-btn" data-code="{{ new_mailbox.password }}">复制密码</button>
       <button class="modal-x btn" type="button">关闭</button>
     </div>
   </div>
@@ -121,6 +141,16 @@
         <legend class="fieldset-legend">备注</legend>
         <input type="text" name="note" autocomplete="off" maxlength="200" class="input w-full"
                placeholder="可选,如用途/归属人" aria-label="邮箱备注">
+      </fieldset>
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">同时创建取件链接</legend>
+        <select name="link_ttl" class="select w-full" aria-label="取件链接有效期">
+          <option value="1">有效期 1 天</option>
+          <option value="7">有效期 7 天</option>
+          <option value="30" selected>有效期 30 天</option>
+          <option value="0">永久有效</option>
+          <option value="none">不创建</option>
+        </select>
       </fieldset>
       <div class="modal-action"><button class="btn btn-primary" type="submit">创建邮箱</button></div>
     </form>

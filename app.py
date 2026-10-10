@@ -1018,6 +1018,16 @@ def _new_token(db):
     abort(500)
 
 
+def _create_link(db, email, expires):
+    """插入一条启用状态的取件链接,返回其 URL(调用方负责 commit)。"""
+    token = _new_token(db)
+    db.execute(
+        'INSERT INTO links (token, email, created_at, active, expires_at)'
+        ' VALUES (?,?,?,1,?)',
+        (token, email, time.time(), expires))
+    return 'https://%s/m/%s' % (request.host, token)
+
+
 def _safe_next():
     nxt = request.form.get('next', '')
     return nxt if nxt.startswith('/admin') else url_for('admin_home')
@@ -1036,13 +1046,8 @@ def admin_generate():
     except ValueError:
         abort(400)
     db = get_db()
-    token = _new_token(db)
-    db.execute(
-        'INSERT INTO links (token, email, created_at, active, expires_at)'
-        ' VALUES (?,?,?,1,?)',
-        (token, email, time.time(), expires))
+    session['new_url'] = _create_link(db, email, expires)
     db.commit()
-    session['new_url'] = 'https://%s/m/%s' % (request.host, token)
     return redirect(_safe_next())
 
 
@@ -1059,6 +1064,10 @@ def admin_add_mailbox():
     local = request.form.get('local', '').strip().lower()
     domain = request.form.get('domain', '').strip().lower()
     password = request.form.get('password', '')
+    # 顺带创建的取件链接有效期;'none' = 不创建
+    link_ttl = request.form.get('link_ttl', '30')
+    if link_ttl != 'none' and link_ttl not in TTL_CHOICES:
+        abort(400)
     if not LOCAL_RE.match(local):
         session['flash_err'] = '邮箱用户名只能含字母、数字、点、下划线、连字符'
         return redirect(_safe_next())
@@ -1083,14 +1092,19 @@ def admin_add_mailbox():
         session['flash_err'] = '创建失败:%s' % msg
         return redirect(_safe_next())
     invalidate_users_cache()
+    db = get_db()
     note = request.form.get('note', '')
     if note.strip():
         set_note(email, note)
-        get_db().commit()
+    url = None
+    if link_ttl != 'none':
+        url = _create_link(db, email, calc_expires(link_ttl))
+    db.commit()
     ready = ensure_maildir(email)
     # 密码只展示一次:存服务端一次性结果,结果弹窗读取后即删
     stash_result('new_mailbox',
-                 {'email': email, 'password': password, 'ready': ready})
+                 {'email': email, 'password': password, 'ready': ready,
+                  'url': url, 'ttl': link_ttl})
     return redirect(_safe_next())
 
 

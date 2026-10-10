@@ -23,11 +23,15 @@ function copyText(t, btn) {
   function feedback() {
     if (!btn) { alert('已复制'); return; }
     btn.classList.add('btn-success');
-    var old = btn.textContent;
+    // 存 innerHTML 而不是 textContent:按钮里可能带图标
+    if (btn.dataset.copying) return;
+    btn.dataset.copying = '1';
+    var old = btn.innerHTML;
     btn.textContent = '已复制 ✓';
     setTimeout(function () {
       btn.classList.remove('btn-success');
-      btn.textContent = old;
+      btn.innerHTML = old;
+      delete btn.dataset.copying;
     }, 1500);
   }
   if (navigator.clipboard && navigator.clipboard.writeText) {
