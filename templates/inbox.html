@@ -5,7 +5,7 @@
   <div class="card-body gap-0">
     <div class="flex items-center gap-3 flex-wrap">
       <span class="font-mono text-lg font-semibold break-all">{{ email }}</span>
-      <button class="btn btn-sm btn-neutral btn-soft copy-btn" data-code="{{ email }}"
+      <button class="btn btn-sm copy-btn" data-code="{{ email }}"
               aria-label="复制邮箱地址">复制邮箱</button>
     </div>
     <nav class="tabs tabs-box bg-base-200 w-fit mt-4 p-1" aria-label="视图切换">
@@ -27,7 +27,7 @@
 <div class="flex flex-col gap-3 mt-4">
   {% for m in mails %}
   <article class="card bg-base-100 shadow-sm relative
-                  {% if loop.first and page == 1 %}border-l-4 border-primary{% endif %}">
+                  {% if loop.first and page == 1 %}border-l-4! border-l-primary!{% endif %}">
     <div class="card-body py-4">
       {% if loop.first and page == 1 %}
       <span class="badge badge-primary badge-soft badge-sm absolute top-3 right-4">最新</span>

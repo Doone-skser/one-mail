@@ -9,6 +9,22 @@
   themes: light --default, dark --prefersdark;
 }
 
+/* 拉开三层底色的明度差:页面(base-300) < 内嵌/悬停(base-200) < 卡片(base-100)。
+   内置主题三层只差 ~2%,卡片和页面几乎糊在一起。同名主题只覆盖这里写的变量。 */
+@plugin "daisyui/theme" {
+  name: "dark";
+  prefersdark: true;
+  --color-base-100: oklch(26.5% 0.015 255);
+  --color-base-200: oklch(22.5% 0.014 255);
+  --color-base-300: oklch(17.5% 0.012 255);
+}
+@plugin "daisyui/theme" {
+  name: "light";
+  default: true;
+  --color-base-200: oklch(97% 0.004 255);
+  --color-base-300: oklch(94% 0.006 255);
+}
+
 /* 中文字体栈:daisyUI 默认字体对中文不友好 */
 @theme {
   --font-sans: -apple-system, "PingFang SC", "Microsoft YaHei", "Helvetica Neue",
@@ -16,12 +32,30 @@
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
+/* 以下几条不放进 @layer:daisyUI 的组件样式在 daisyui.* 层里,排在 Tailwind 的
+   components 层之后,写在 components 里会被它盖掉;不分层的样式优先级最高。 */
+/* 统一的细线色:随主题自动深浅 */
+:root { --line: color-mix(in oklab, var(--color-base-content) 11%, transparent); }
+
+/* 卡片加描边,和页面底色分开 */
+.card { border: 1px solid var(--line); }
+
+/* 列表行之间的分隔线 */
+.row-list > * + * { border-top: 1px solid var(--line); }
+
+/* 无颜色修饰的普通按钮:透明底 + 细描边,避免和卡片底色混成一片 */
+.btn:not(.btn-primary, .btn-secondary, .btn-accent, .btn-neutral, .btn-info,
+         .btn-success, .btn-warning, .btn-error, .btn-ghost, .btn-link,
+         .btn-soft, .btn-outline) {
+  --btn-bg: transparent;
+  --btn-border: color-mix(in oklab, var(--color-base-content) 20%, transparent);
+  --btn-shadow: none;
+  &:hover { --btn-bg: color-mix(in oklab, var(--color-base-content) 8%, transparent); }
+}
+
 @layer components {
   /* 按钮/徽章文字永不折行,也不被 flex/表格挤窄(否则会变成一字一行) */
   .btn, .badge { white-space: nowrap; flex-shrink: 0; }
-
-  /* 列表行之间的细分隔线 */
-  .row-list > * + * { border-top: 1px solid var(--color-base-200); }
 
   /* 验证码大字:等宽 + 等宽数字,拉开字距方便抄写 */
   .code-big {

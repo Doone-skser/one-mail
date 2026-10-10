@@ -147,33 +147,38 @@
 
 {% for b in boxes %}
 {% set links = links_by_email.get(b, []) %}
-<div class="card bg-base-100 shadow-sm mt-4 box-card"
+<div class="card bg-base-100 shadow-sm mt-4 box-card overflow-hidden"
      data-email="{{ b }}" data-note="{{ notes.get(b, '') }}">
-  <div class="card-body">
-    <div class="flex justify-between items-start gap-3">
+  {# 卡片头:浅一档底色 + 分隔线,和下方链接行区分开 #}
+  <div class="flex justify-between items-center gap-3 px-5 py-3 bg-base-200 border-b border-base-content/10">
+    <div class="flex items-start gap-3 min-w-0">
+      <div class="size-8 shrink-0 rounded-lg bg-primary/15 text-primary grid place-items-center
+                  font-semibold uppercase" aria-hidden="true">{{ b[0] }}</div>
       <div class="min-w-0">
-        <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex items-center gap-x-2 gap-y-1 flex-wrap">
           <span class="font-mono font-semibold break-all">{{ b }}</span>
           {% if notes.get(b) %}
           {# 备注不用 .badge:徽章禁止折行,长备注会撑破卡片 #}
           <span class="text-sm font-medium text-secondary bg-secondary/10 rounded-md px-2 py-0.5
                        wrap-anywhere box-decoration-clone">{{ notes[b] }}</span>
           {% endif %}
-          <span class="badge badge-sm badge-ghost">{{ links | length }} 个链接</span>
+          <span class="text-xs text-base-content/50 whitespace-nowrap">{{ links | length }} 个链接</span>
         </div>
       </div>
-      <form method="post" action="/admin/mailboxes/note" class="note-form shrink-0">
-        <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
-        <input type="hidden" name="next" value="/admin/">
-        <input type="hidden" name="email" value="{{ b }}">
-        <input type="hidden" name="note" value="{{ notes.get(b, '') }}">
-        <button class="btn btn-sm" type="submit">{{ '编辑备注' if notes.get(b) else '添加备注' }}</button>
-      </form>
     </div>
+    <form method="post" action="/admin/mailboxes/note" class="note-form shrink-0">
+      <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+      <input type="hidden" name="next" value="/admin/">
+      <input type="hidden" name="email" value="{{ b }}">
+      <input type="hidden" name="note" value="{{ notes.get(b, '') }}">
+      <button class="btn btn-sm" type="submit">{{ '编辑备注' if notes.get(b) else '添加备注' }}</button>
+    </form>
+  </div>
 
-    <div class="row-list border-t border-dashed border-base-300 mt-3">
+  <div class="row-list">
       {% for l in links %}
-      <div class="flex flex-col lg:flex-row lg:items-center gap-x-4 gap-y-2.5 py-3.5">
+      <div class="flex flex-col lg:flex-row lg:items-center gap-x-4 gap-y-2.5 px-5 py-3.5
+                  hover:bg-base-content/[.025] transition-colors">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="badge badge-sm {{ l.status_cls }}">{{ l.status }}</span>
@@ -186,9 +191,11 @@
           </div>
         </div>
         <div class="flex gap-1.5 flex-wrap items-center lg:justify-end">
-          <button class="btn btn-sm" onclick="copyText('{{ l.url }}', this)">复制 URL</button>
-          <a class="btn btn-sm" href="{{ l.url }}" target="_blank" rel="noopener noreferrer">打开 ↗</a>
-          <a class="btn btn-sm" href="/admin/links/{{ l.id }}">日志</a>
+          <div class="join">
+            <button class="btn btn-sm join-item" onclick="copyText('{{ l.url }}', this)">复制 URL</button>
+            <a class="btn btn-sm join-item" href="{{ l.url }}" target="_blank" rel="noopener noreferrer">打开 ↗</a>
+            <a class="btn btn-sm join-item" href="/admin/links/{{ l.id }}">日志</a>
+          </div>
           <form method="post" action="/admin/links/{{ l.id }}/extend">
             <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
             <input type="hidden" name="next" value="/admin/">
@@ -221,7 +228,6 @@
         </div>
       </div>
       {% endfor %}
-    </div>
   </div>
 </div>
 {% endfor %}

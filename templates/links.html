@@ -8,16 +8,17 @@
 {% endblock %}
 {% block content %}
 {% include "_toast.html" %}
-<div class="card bg-base-100 shadow-sm">
-  <div class="card-body">
-    <div class="flex items-center gap-2">
-      <h1 class="card-title text-xl">链接汇总</h1>
-      <span class="badge badge-ghost">{{ links | length }}</span>
-    </div>
+<div class="card bg-base-100 shadow-sm overflow-hidden">
+  <div class="flex items-center gap-2 px-5 py-3.5 bg-base-200 border-b border-base-content/10">
+    <h1 class="text-lg font-semibold">链接汇总</h1>
+    <span class="text-sm text-base-content/50">{{ links | length }} 个</span>
+  </div>
+  <div>
     {% if links %}
-    <div class="row-list mt-2">
+    <div class="row-list">
       {% for l in links %}
-      <div class="flex flex-col lg:flex-row lg:items-center gap-x-4 gap-y-2.5 py-3.5">
+      <div class="flex flex-col lg:flex-row lg:items-center gap-x-4 gap-y-2.5 px-5 py-3.5
+                  hover:bg-base-content/[.025] transition-colors">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="font-mono text-sm font-semibold break-all">{{ l.email }}</span>
@@ -31,10 +32,12 @@
           </div>
         </div>
         <div class="flex gap-1.5 flex-wrap items-center lg:justify-end">
-          <button class="btn btn-sm" onclick="copyText('{{ l.url }}', this)">复制</button>
-          <a class="btn btn-sm" href="{{ l.url }}" target="_blank"
-             rel="noopener noreferrer">打开 ↗</a>
-          <a class="btn btn-sm" href="/admin/links/{{ l.id }}">日志</a>
+          <div class="join">
+            <button class="btn btn-sm join-item" onclick="copyText('{{ l.url }}', this)">复制</button>
+            <a class="btn btn-sm join-item" href="{{ l.url }}" target="_blank"
+               rel="noopener noreferrer">打开 ↗</a>
+            <a class="btn btn-sm join-item" href="/admin/links/{{ l.id }}">日志</a>
+          </div>
           <form method="post" action="/admin/links/{{ l.id }}/extend">
             <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
             <input type="hidden" name="next" value="/admin/links">
@@ -63,7 +66,7 @@
       {% endfor %}
     </div>
     {% else %}
-    <p class="text-sm text-base-content/60 py-6 text-center">还没有生成过取件链接</p>
+    <p class="text-sm text-base-content/60 py-10 text-center">还没有生成过取件链接</p>
     {% endif %}
   </div>
 </div>
