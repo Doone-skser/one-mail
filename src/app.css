@@ -69,6 +69,19 @@
     @apply bg-primary text-primary-content shadow-md shadow-primary/20
            hover:bg-primary hover:text-primary-content;
   }
+  /* 分段切换(取件页 验证码/全部邮件):选中项实心主色,未选中项灰字 + 悬停底色 */
+  .seg {
+    @apply inline-flex w-fit gap-1 p-1 rounded-xl bg-base-300 border border-base-content/10;
+  }
+  .seg-item {
+    @apply inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium
+           text-base-content/60 transition-colors hover:text-base-content hover:bg-base-content/5;
+  }
+  .seg-active {
+    @apply bg-primary text-primary-content shadow-sm shadow-primary/30
+           hover:bg-primary hover:text-primary-content;
+  }
+
   /* 按钮/徽章文字永不折行,也不被 flex/表格挤窄(否则会变成一字一行) */
   .btn, .badge { white-space: nowrap; flex-shrink: 0; }
 

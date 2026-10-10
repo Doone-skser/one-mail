@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{% if view == 'all' %}全部邮件{% else %}验证码邮件{% endif %} - {{ email }}{% endblock %}
 {% block content %}
+{% from "_icons.html" import icon %}
 <div class="card bg-base-100 shadow-sm">
   <div class="card-body gap-0">
     <div class="flex items-center gap-3 flex-wrap">
@@ -8,11 +9,11 @@
       <button class="btn btn-sm copy-btn" data-code="{{ email }}"
               aria-label="复制邮箱地址">复制邮箱</button>
     </div>
-    <nav class="tabs tabs-box bg-base-200 w-fit mt-4 p-1" aria-label="视图切换">
-      <a class="tab{% if view != 'all' %} tab-active{% endif %}" href="/m/{{ token }}"
-         {% if view != 'all' %}aria-current="page"{% endif %}>验证码</a>
-      <a class="tab{% if view == 'all' %} tab-active{% endif %}" href="/m/{{ token }}?view=all"
-         {% if view == 'all' %}aria-current="page"{% endif %}>全部邮件</a>
+    <nav class="seg mt-4" aria-label="视图切换">
+      <a class="seg-item{% if view != 'all' %} seg-active{% endif %}" href="/m/{{ token }}"
+         {% if view != 'all' %}aria-current="page"{% endif %}>{{ icon('key') }}验证码</a>
+      <a class="seg-item{% if view == 'all' %} seg-active{% endif %}" href="/m/{{ token }}?view=all"
+         {% if view == 'all' %}aria-current="page"{% endif %}>{{ icon('mail') }}全部邮件</a>
     </nav>
     <div class="flex items-center gap-4 flex-wrap mt-3 text-sm text-base-content/60">
       <span>{% if view == 'all' %}共 {{ total }} 封邮件{% else %}共 {{ total }} 封验证码邮件{% endif %}{% if total and pages > 1 %} · 第 {{ page }} / {{ pages }} 页{% endif %}</span>
