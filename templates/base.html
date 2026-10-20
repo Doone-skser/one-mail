@@ -57,8 +57,10 @@ document.addEventListener('click', function (e) {
   if (!btn) return;
   copyText(btn.getAttribute('data-code'), btn);
 });
-// toast:5s 自动消失,也可点 ✕ 立即关闭
-document.querySelectorAll('.toast-item').forEach(function (t) {
+// toast:5s 自动消失,也可点 ✕ 立即关闭(页面内局部刷新后会再次调用)
+function initToasts() {
+document.querySelectorAll('.toast-item:not([data-bound])').forEach(function (t) {
+  t.setAttribute('data-bound', '1');
   var timer = setTimeout(dismiss, 5000);
   function dismiss() {
     clearTimeout(timer);
@@ -68,6 +70,8 @@ document.querySelectorAll('.toast-item').forEach(function (t) {
   var x = t.querySelector('.toast-close');
   if (x) x.addEventListener('click', dismiss);
 });
+}
+initToasts();
 // details 下拉菜单:点外面 / 选完后收起
 document.addEventListener('click', function (e) {
   document.querySelectorAll('details.dropdown[open]').forEach(function (d) {

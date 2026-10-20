@@ -273,77 +273,110 @@
 </div>
 
 <script>
-// 邮箱卡片实时过滤(纯前端,不区分大小写)
 (function () {
-  var input = document.getElementById('box-search');
-  var noMatch = document.getElementById('no-match');
-  var noteOnly = document.getElementById('note-only');
-  function applyFilter() {
-    var q = input.value.trim().toLowerCase();
-    var cards = document.querySelectorAll('.box-card');
-    var visible = 0;
-    for (var i = 0; i < cards.length; i++) {
-      var hay = (noteOnly.checked ? cards[i].getAttribute('data-note') :
-                 cards[i].getAttribute('data-email') + ' ' +
-                 cards[i].getAttribute('data-note')).toLowerCase();
-      var show = hay.indexOf(q) !== -1;
-      cards[i].classList.toggle('hidden', !show);
-      if (show) visible++;
+  // 每次渲染(首次加载 / 局部刷新后)都要重新绑定的部分
+  function initAdmin() {
+    // 邮箱卡片实时过滤(纯前端,不区分大小写)
+    var input = document.getElementById('box-search');
+    var noMatch = document.getElementById('no-match');
+    var noteOnly = document.getElementById('note-only');
+    function applyFilter() {
+      var q = input.value.trim().toLowerCase();
+      var cards = document.querySelectorAll('.box-card');
+      var visible = 0;
+      for (var i = 0; i < cards.length; i++) {
+        var hay = (noteOnly.checked ? cards[i].getAttribute('data-note') :
+                   cards[i].getAttribute('data-email') + ' ' +
+                   cards[i].getAttribute('data-note')).toLowerCase();
+        var show = hay.indexOf(q) !== -1;
+        cards[i].classList.toggle('hidden', !show);
+        if (show) visible++;
+      }
+      noMatch.classList.toggle('hidden', !q || visible > 0);
     }
-    noMatch.classList.toggle('hidden', !q || visible > 0);
+    // 关键词/只搜备注同步到地址栏 ?q=&note=1,刷新页面后据此恢复过滤
+    function onChange() {
+      applyFilter();
+      var params = new URLSearchParams();
+      var q = input.value.trim();
+      if (q) params.set('q', q);
+      if (noteOnly.checked) params.set('note', '1');
+      var qs = params.toString();
+      history.replaceState(null, '', qs ? '?' + qs : location.pathname);
+    }
+    input.addEventListener('input', onChange);
+    noteOnly.addEventListener('change', onChange);
+    var initParams = new URLSearchParams(location.search);
+    input.value = initParams.get('q') || '';
+    noteOnly.checked = initParams.get('note') === '1';
+    if (input.value) applyFilter();
+    // 弹窗打开(关闭逻辑在 base.html:✕ / 遮罩点击)
+    function bindModal(btnId, modalId, focusSel) {
+      var btn = document.getElementById(btnId);
+      var modal = document.getElementById(modalId);
+      btn.addEventListener('click', function () {
+        modal.classList.add('modal-open');
+        var f = modal.querySelector(focusSel);
+        if (f) f.focus();
+      });
+    }
+    // 备注编辑:prompt 输入,留空即清除
+    var noteForms = document.querySelectorAll('.note-form');
+    for (var j = 0; j < noteForms.length; j++) {
+      noteForms[j].addEventListener('submit', function (e) {
+        var field = this.querySelector('input[name=note]');
+        var v = prompt('备注(留空清除,最多 200 字):', field.value);
+        if (v === null) { e.preventDefault(); return; }
+        field.value = v;
+      });
+    }
+    bindModal('new-link-btn', 'new-link-modal', 'select[name=email]');
+    bindModal('add-box-btn', 'add-box-modal', 'input[name=local]');
   }
-  // 关键词/只搜备注同步到地址栏 ?q=&note=1,操作后跳回时据此恢复过滤
-  function onChange() {
-    applyFilter();
-    var params = new URLSearchParams();
-    var q = input.value.trim();
-    if (q) params.set('q', q);
-    if (noteOnly.checked) params.set('note', '1');
-    var qs = params.toString();
-    history.replaceState(null, '', qs ? '?' + qs : location.pathname);
-  }
-  input.addEventListener('input', onChange);
-  noteOnly.addEventListener('change', onChange);
-  var initParams = new URLSearchParams(location.search);
-  input.value = initParams.get('q') || '';
-  noteOnly.checked = initParams.get('note') === '1';
-  if (input.value) applyFilter();
-  // 提交任意操作表单时,把 next 换成带关键词的当前地址,并记住滚动位置
+  initAdmin();
+
+  // 操作表单改为 fetch 提交:服务端直接返回新列表页,只替换 <main>,
+  // 不整页刷新,搜索条件、滚动位置都保留,且只需一次往返
+  var busy = false;
   document.addEventListener('submit', function (e) {
     if (e.defaultPrevented) return;
-    var nxt = e.target.querySelector('input[name=next]');
-    if (nxt && nxt.value === '/admin/') nxt.value = location.pathname + location.search;
-    try { sessionStorage.setItem('admin-scroll', String(window.scrollY)); } catch (err) {}
-  });
-  try {
-    var y = sessionStorage.getItem('admin-scroll');
-    if (y !== null) {
-      sessionStorage.removeItem('admin-scroll');
-      window.scrollTo(0, parseInt(y, 10) || 0);
+    var form = e.target;
+    var main = document.getElementById('admin-main');
+    if (!main.contains(form) || form.method.toLowerCase() !== 'post') return;
+    e.preventDefault();
+    if (busy) return;
+    busy = true;
+    var body = new FormData(form);
+    var btn = e.submitter;
+    if (btn && btn.name) body.append(btn.name, btn.value);
+    if (btn) {
+      btn.disabled = true;
+      btn.insertAdjacentHTML('afterbegin', '<span class="loading loading-spinner loading-xs"></span>');
     }
-  } catch (err) {}
-  // 弹窗打开(关闭逻辑在 base.html:✕ / 遮罩点击)
-  function bindModal(btnId, modalId, focusSel) {
-    var btn = document.getElementById(btnId);
-    var modal = document.getElementById(modalId);
-    btn.addEventListener('click', function () {
-      modal.classList.add('modal-open');
-      var f = modal.querySelector(focusSel);
-      if (f) f.focus();
-    });
-  }
-  // 备注编辑:prompt 输入,留空即清除
-  var noteForms = document.querySelectorAll('.note-form');
-  for (var j = 0; j < noteForms.length; j++) {
-    noteForms[j].addEventListener('submit', function (e) {
-      var field = this.querySelector('input[name=note]');
-      var v = prompt('备注(留空清除,最多 200 字):', field.value);
-      if (v === null) { e.preventDefault(); return; }
-      field.value = v;
-    });
-  }
-  bindModal('new-link-btn', 'new-link-modal', 'select[name=email]');
-  bindModal('add-box-btn', 'add-box-modal', 'input[name=local]');
+    fetch(form.action, { method: 'POST', body: body, credentials: 'same-origin',
+                         headers: { 'X-Fetch': '1' } })
+      .then(function (res) {
+        return res.text().then(function (html) {
+          var fresh = new DOMParser().parseFromString(html, 'text/html')
+                                     .getElementById('admin-main');
+          if (res.ok && fresh) {
+            main.innerHTML = fresh.innerHTML;
+            initAdmin();
+            initToasts();
+          } else if (res.ok) {
+            location.href = res.url;  // 会话失效被跳到登录页等
+          } else {
+            alert('操作失败(HTTP ' + res.status + '),页面将刷新');
+            location.reload();
+          }
+        });
+      })
+      .catch(function () {
+        alert('网络异常,操作结果未知,页面将刷新');
+        location.reload();
+      })
+      .then(function () { busy = false; });
+  });
 })();
 </script>
 {% endblock %}

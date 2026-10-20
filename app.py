@@ -174,10 +174,14 @@ _users_cache = {'ts': 0, 'data': None}
 _users_lock = threading.Lock()
 
 
+USERS_CACHE_SEC = 300
+
+
 def miab_users(email, password):
-    """拉取邮箱列表,缓存 60 秒。"""
+    """拉取邮箱列表,缓存 5 分钟(添加邮箱时主动失效)。"""
     with _users_lock:
-        if _users_cache['data'] is not None and time.time() - _users_cache['ts'] < 60:
+        if (_users_cache['data'] is not None
+                and time.time() - _users_cache['ts'] < USERS_CACHE_SEC):
             return _users_cache['data']
     status, data = miab_query(email, password)
     if status != 200:
@@ -711,6 +715,17 @@ def csrf_protect():
     return None
 
 
+@app.url_defaults
+def static_version(endpoint, values):
+    """静态文件 URL 带 ?v=<mtime>,文件一变 URL 就变,可放心长期缓存。"""
+    if endpoint == 'static' and 'filename' in values and 'v' not in values:
+        try:
+            values['v'] = int(os.path.getmtime(
+                os.path.join(app.static_folder, values['filename'])))
+        except OSError:
+            pass
+
+
 @app.after_request
 def security_headers(resp):
     resp.headers['X-Content-Type-Options'] = 'nosniff'
@@ -722,6 +737,8 @@ def security_headers(resp):
         "frame-ancestors 'none'; base-uri 'none'")
     if request.headers.get('X-Forwarded-Proto') == 'https':
         resp.headers['Strict-Transport-Security'] = 'max-age=31536000'
+    if request.endpoint == 'static' and request.args.get('v') and resp.status_code == 200:
+        resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
     return resp
 
 
@@ -1033,6 +1050,14 @@ def _safe_next():
     return nxt if nxt.startswith('/admin') else url_for('admin_home')
 
 
+def _back():
+    """操作完成后返回。邮箱列表页内 fetch 提交(带 X-Fetch 头)直接返回渲染好的
+    列表页,省掉 302 再 GET 的一次往返;普通表单提交照旧跳回 next。"""
+    if request.headers.get('X-Fetch') == '1':
+        return admin_home()
+    return redirect(_safe_next())
+
+
 @app.route('/admin/generate', methods=['POST'])
 def admin_generate():
     r = admin_required()
@@ -1048,7 +1073,7 @@ def admin_generate():
     db = get_db()
     session['new_url'] = _create_link(db, email, expires)
     db.commit()
-    return redirect(_safe_next())
+    return _back()
 
 
 LOCAL_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
@@ -1070,27 +1095,27 @@ def admin_add_mailbox():
         abort(400)
     if not LOCAL_RE.match(local):
         session['flash_err'] = '邮箱用户名只能含字母、数字、点、下划线、连字符'
-        return redirect(_safe_next())
+        return _back()
     creds = get_admin_creds()
     boxes = miab_users(*creds)
     domains = {b.split('@', 1)[1] for b in (boxes or []) if '@' in b}
     if domain not in domains:
         session['flash_err'] = '域名 %s 不在本服务器托管范围内' % domain
-        return redirect(_safe_next())
+        return _back()
     email = '%s@%s' % (local, domain)
     if boxes and email in boxes:
         session['flash_err'] = '邮箱 %s 已存在' % email
-        return redirect(_safe_next())
+        return _back()
     auto_pw = not password
     if auto_pw:
         password = secrets.token_urlsafe(12)
     elif len(password) < 8:
         session['flash_err'] = '密码至少 8 位(留空则自动生成)'
-        return redirect(_safe_next())
+        return _back()
     ok, msg = miab_add_user(creds[0], creds[1], email, password)
     if not ok:
         session['flash_err'] = '创建失败:%s' % msg
-        return redirect(_safe_next())
+        return _back()
     invalidate_users_cache()
     db = get_db()
     note = request.form.get('note', '')
@@ -1105,7 +1130,7 @@ def admin_add_mailbox():
     stash_result('new_mailbox',
                  {'email': email, 'password': password, 'ready': ready,
                   'url': url, 'ttl': link_ttl})
-    return redirect(_safe_next())
+    return _back()
 
 
 @app.route('/admin/mailboxes/note', methods=['POST'])
@@ -1120,7 +1145,7 @@ def admin_mailbox_note():
     set_note(email, request.form.get('note', ''))
     get_db().commit()
     session['flash_msg'] = '%s 的备注已更新' % email
-    return redirect(_safe_next())
+    return _back()
 
 
 @app.route('/admin/links/<int:lid>/extend', methods=['POST'])
@@ -1149,7 +1174,7 @@ def admin_extend(lid):
     db.commit()
     session['flash_msg'] = '链接 #%d 有效期已%s' % (
         lid, '改为永久' if days is None else '顺延 %d 天' % days)
-    return redirect(_safe_next())
+    return _back()
 
 
 @app.route('/admin/links')
@@ -1182,10 +1207,10 @@ def admin_toggle(lid):
         abort(404)
     if link_expired(link):
         # 已过期的链接不能再启用/撤销,先延期
-        return redirect(_safe_next())
+        return _back()
     db.execute('UPDATE links SET active = 1 - active WHERE id = ?', (lid,))
     db.commit()
-    return redirect(_safe_next())
+    return _back()
 
 
 @app.route('/admin/links/<int:lid>/delete', methods=['POST'])
@@ -1199,7 +1224,7 @@ def admin_delete(lid):
     db.execute('DELETE FROM links WHERE id = ?', (lid,))
     db.commit()
     session['flash_msg'] = '链接 #%d 已彻底删除' % lid
-    return redirect(_safe_next())
+    return _back()
 
 
 @app.route('/admin/links/clear-revoked', methods=['POST'])
@@ -1217,7 +1242,7 @@ def admin_clear_revoked():
         db.execute('DELETE FROM links WHERE id IN (%s)' % marks, ids)
         db.commit()
     session['flash_msg'] = '已清除 %d 条已撤销链接' % len(ids)
-    return redirect(_safe_next())
+    return _back()
 
 
 @app.route('/admin/links/<int:lid>')
