@@ -70,6 +70,9 @@
     <input type="search" id="box-search" placeholder="搜索邮箱地址或备注…"
            aria-label="搜索邮箱地址或备注" class="grow">
   </label>
+  <label class="label cursor-pointer gap-1.5 text-sm text-base-content/70 select-none">
+    <input type="checkbox" id="note-only" class="checkbox checkbox-sm">只搜备注
+  </label>
   <button class="btn btn-primary" id="new-link-btn" type="button">{{ icon('plus') }}新增链接</button>
   <button class="btn" id="add-box-btn" type="button">{{ icon('plus-circle') }}添加邮箱</button>
   {% if revoked_count %}
@@ -274,19 +277,51 @@
 (function () {
   var input = document.getElementById('box-search');
   var noMatch = document.getElementById('no-match');
-  input.addEventListener('input', function () {
+  var noteOnly = document.getElementById('note-only');
+  function applyFilter() {
     var q = input.value.trim().toLowerCase();
     var cards = document.querySelectorAll('.box-card');
     var visible = 0;
     for (var i = 0; i < cards.length; i++) {
-      var hay = (cards[i].getAttribute('data-email') + ' ' +
+      var hay = (noteOnly.checked ? cards[i].getAttribute('data-note') :
+                 cards[i].getAttribute('data-email') + ' ' +
                  cards[i].getAttribute('data-note')).toLowerCase();
       var show = hay.indexOf(q) !== -1;
       cards[i].classList.toggle('hidden', !show);
       if (show) visible++;
     }
-    noMatch.classList.toggle('hidden', visible > 0);
+    noMatch.classList.toggle('hidden', !q || visible > 0);
+  }
+  // 关键词/只搜备注同步到地址栏 ?q=&note=1,操作后跳回时据此恢复过滤
+  function onChange() {
+    applyFilter();
+    var params = new URLSearchParams();
+    var q = input.value.trim();
+    if (q) params.set('q', q);
+    if (noteOnly.checked) params.set('note', '1');
+    var qs = params.toString();
+    history.replaceState(null, '', qs ? '?' + qs : location.pathname);
+  }
+  input.addEventListener('input', onChange);
+  noteOnly.addEventListener('change', onChange);
+  var initParams = new URLSearchParams(location.search);
+  input.value = initParams.get('q') || '';
+  noteOnly.checked = initParams.get('note') === '1';
+  if (input.value) applyFilter();
+  // 提交任意操作表单时,把 next 换成带关键词的当前地址,并记住滚动位置
+  document.addEventListener('submit', function (e) {
+    if (e.defaultPrevented) return;
+    var nxt = e.target.querySelector('input[name=next]');
+    if (nxt && nxt.value === '/admin/') nxt.value = location.pathname + location.search;
+    try { sessionStorage.setItem('admin-scroll', String(window.scrollY)); } catch (err) {}
   });
+  try {
+    var y = sessionStorage.getItem('admin-scroll');
+    if (y !== null) {
+      sessionStorage.removeItem('admin-scroll');
+      window.scrollTo(0, parseInt(y, 10) || 0);
+    }
+  } catch (err) {}
   // 弹窗打开(关闭逻辑在 base.html:✕ / 遮罩点击)
   function bindModal(btnId, modalId, focusSel) {
     var btn = document.getElementById(btnId);
