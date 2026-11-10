@@ -78,6 +78,7 @@ _sec_handler = logging.FileHandler(os.path.join(BASE, 'security.log'))
 _sec_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s',
                                             '%Y-%m-%dT%H:%M:%S'))
 _sec_log.addHandler(_sec_handler)
+os.chmod(_sec_handler.baseFilename, 0o600)  # 含来源 IP 和登录邮箱
 _sec_log.propagate = False
 
 _ssl_ctx = ssl.create_default_context()
@@ -149,6 +150,9 @@ def init_db():
         db.execute('ALTER TABLE links ADD COLUMN expires_at REAL')
     db.commit()
     db.close()
+    # 库里有管理员会话(含 MIAB 密码)和全部取件 token,只许属主读写;
+    # 每次启动都收一遍,顺带修正已部署环境里的 644
+    os.chmod(DB_PATH, 0o600)
 
 
 init_db()
@@ -383,10 +387,15 @@ def extract_parts(msg):
 # 1px 透明 GIF,剥掉远端图片后占位用(保留布局尺寸)
 _PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA='
 # src/srcset/background 属性里的远端 URL
+# 注意:这里的替换只是为了显示占位图,真正的拦截靠 message_view 页面的 CSP
+# (img-src 不含 https:),正则漏掉的写法浏览器也不会加载。
+# 量词都带上限,防止恶意邮件用大量未闭合片段触发平方级回溯(ReDoS)。
 _REMOTE_ATTR_RE = re.compile(
-    r'(\s(?:src|srcset|background)\s*=\s*)("|\')(https?://.*?)\2', re.I | re.S)
+    r'(\s(?:src|srcset|background)\s{0,8}=\s{0,8})("|\')(https?://[^"\']{0,4096})\2',
+    re.I)
 # style 属性里的 url(http...)
-_REMOTE_CSS_URL_RE = re.compile(r'url\(\s*(["\']?)https?://.*?\1\s*\)', re.I)
+_REMOTE_CSS_URL_RE = re.compile(
+    r'url\(\s{0,8}["\']?https?://[^)]{0,4096}\)', re.I)
 # 占位图样式,追加在正文末尾让被剥的图有个浅灰底
 _PLACEHOLDER_STYLE = '<style>img[data-remote]{background-color:#f3f4f6}</style>'
 
@@ -396,6 +405,9 @@ def strip_remote_resources(html_text):
     和 style 里的 url(http...) 全部替换为 1px 透明占位图(图片打上
     data-remote 标记,末尾追加浅灰底样式),返回处理后的 HTML。"""
     if not html_text:
+        return html_text
+    if len(html_text) > 2_000_000:
+        # 超大正文不做占位替换(省 CPU);远端图片仍由页面 CSP 拦截
         return html_text
 
     def attr_sub(m):
@@ -423,22 +435,52 @@ _CODE_KW_RE = re.compile(_CODE_KW, re.I)
 _KW_BEFORE_RE = re.compile(_CODE_KW + r'[^\d]{0,20}?(\d{4,8})(?!\d)', re.I)
 # 数字在前,关键词在后(前置边界同样防长数字段)
 _KW_AFTER_RE = re.compile(r'(?<![\dA-Za-z])(\d{4,8})[^\d]{0,20}?' + _CODE_KW, re.I)
-_TAG_RE = re.compile(r'<[^>]+>')
-_STYLE_SCRIPT_RE = re.compile(r'<(style|script|head)[^>]*>.*?</\1>', re.I | re.S)
 _HEX_COLOR_RE = re.compile(r'#[0-9a-fA-F]{3,8}\b')
+# 验证码提取只看正文前这么多字符:验证码邮件都很短,截断可挡住超大恶意邮件
+CODE_SCAN_MAX = 200_000
+_SKIP_BLOCKS = ('style', 'script', 'head')
 
 
 def strip_html(html_text):
     """剥掉 HTML 标签,得到纯文本(用于从 HTML 邮件中提取验证码)。
-    先剔除 style/script/head 块,再剥标签,最后去掉 #000000 之类的颜色值,
-    避免 CSS 里的十六进制颜色被误识别为验证码。"""
+    剔除 style/script/head 块和所有标签,最后去掉 #000000 之类的颜色值,
+    避免 CSS 里的十六进制颜色被误识别为验证码。
+    手写的单趟扫描(只用 str.find),耗时与长度成线性——早先的正则版本遇到
+    大量未闭合的 <style> 会平方级回溯,一封恶意邮件就能卡死 worker。"""
     if not html_text:
         return ''
-    s = _STYLE_SCRIPT_RE.sub(' ', html_text)
-    s = _TAG_RE.sub(' ', s)
-    s = html_mod.unescape(s)
-    s = _HEX_COLOR_RE.sub(' ', s)
-    return s
+    s = html_text[:CODE_SCAN_MAX]
+    low = s.lower()
+    n = len(s)
+    out = []
+    # 已确认"后面再也没有闭合标签"的块名:每种只会失败扫描一次,保证线性
+    no_close = set()
+    i = 0
+    while i < n:
+        lt = s.find('<', i)
+        if lt < 0:
+            out.append(s[i:])
+            break
+        out.append(s[i:lt])
+        gt = s.find('>', lt + 1)
+        if gt < 0:
+            out.append(s[lt:])  # 后面再没有 '>':不是标签,原样当文本
+            break
+        out.append(' ')
+        i = gt + 1
+        for name in _SKIP_BLOCKS:
+            after = lt + 1 + len(name)
+            if (name not in no_close and low.startswith(name, lt + 1)
+                    and not low[after:after + 1].isalnum()):
+                end = low.find('</' + name, i)
+                end_gt = s.find('>', end) if end >= 0 else -1
+                if end_gt < 0:
+                    no_close.add(name)  # 块没闭合:按普通标签处理,内容保留
+                else:
+                    i = end_gt + 1      # 整块(含内容)跳过
+                break
+    s = html_mod.unescape(''.join(out))
+    return _HEX_COLOR_RE.sub(' ', s)
 
 
 def _looks_like_year(d):
@@ -462,8 +504,8 @@ def extract_code(subject, text):
     只认关键词邻近的 4~8 位数字(主题先于正文);关键词附近是年份的不算。
     匹配前先把连续空白压成单空格——HTML 邮件剥标签后关键词和数字之间
     常隔着大量换行/缩进,不压缩会漏真验证码。"""
-    subject = _WS_RE.sub(' ', subject or '')
-    text = _WS_RE.sub(' ', text or '')
+    subject = _WS_RE.sub(' ', (subject or '')[:2000])
+    text = _WS_RE.sub(' ', (text or '')[:CODE_SCAN_MAX])
     for src in (subject, text):
         hit = _kw_search(src)
         if hit:
@@ -482,6 +524,16 @@ def msg_plain_text(msg, text_body, html_body):
 
 def client_ip():
     return request.headers.get('X-Real-IP') or request.remote_addr or ''
+
+
+_LOG_UNSAFE_RE = re.compile(r'[\s\x00-\x1f\x7f-\x9f  ]+')
+
+
+def log_safe(value):
+    """写进 security.log 的用户可控字段先消毒:空白/换行/控制字符一律换成 '_'
+    并限长。否则在登录邮箱里夹换行就能伪造 'LOGIN_FAIL ip=<任意IP>' 行,
+    借 fail2ban 封掉别人的 IP。"""
+    return _LOG_UNSAFE_RE.sub('_', str(value or ''))[:200]
 
 
 def fmt_size(n):
@@ -731,10 +783,15 @@ def security_headers(resp):
     resp.headers['X-Content-Type-Options'] = 'nosniff'
     resp.headers['X-Frame-Options'] = 'DENY'
     resp.headers['Referrer-Policy'] = 'no-referrer'
+    # 远端图片只在邮件详情页且用户点了"加载"(?remote=1)时才放行 https:。
+    # 邮件正文在 srcdoc iframe 里,继承本页 CSP,所以"屏蔽远端图片"由浏览器
+    # 强制执行,不依赖 strip_remote_resources 的正则有没有漏网。
+    img_src = ("'self' data: https:" if g.get('allow_remote_img')
+               else "'self' data:")
     resp.headers['Content-Security-Policy'] = (
         "default-src 'self'; style-src 'self' 'unsafe-inline'; "
-        "script-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
-        "frame-ancestors 'none'; base-uri 'none'")
+        "script-src 'self' 'unsafe-inline'; img-src %s; "
+        "frame-ancestors 'none'; base-uri 'none'" % img_src)
     if request.headers.get('X-Forwarded-Proto') == 'https':
         resp.headers['Strict-Transport-Security'] = 'max-age=31536000'
     if request.endpoint == 'static' and request.args.get('v') and resp.status_code == 200:
@@ -800,9 +857,9 @@ def client_invalid(link):
         ip = client_ip()
         record_attempt('t404', ip)
         n = attempt_count('t404', ip, TOKEN404_WINDOW)
-        _sec_log.info('TOKEN404 ip=%s count=%d', ip, n)
+        _sec_log.info('TOKEN404 ip=%s count=%d', log_safe(ip), n)
         if n > TOKEN404_MAX:
-            _sec_log.info('TOKEN429 ip=%s', ip)
+            _sec_log.info('TOKEN429 ip=%s', log_safe(ip))
             return 'Too Many Requests', 429
         kind, email = 'notfound', None
     elif not link['active']:
@@ -910,6 +967,7 @@ def message_view(token, key):
                         msg_plain_text(msg, text_body, html_body))
     # 远端资源默认不加载;?remote=1 时渲染原始 HTML
     remote = request.args.get('remote') == '1'
+    g.allow_remote_img = remote
     if html_body and not remote:
         html_body = strip_remote_resources(html_body)
     # 链接有效时完整显示邮箱地址(打码只在失效提示页生效,见 client_invalid)
@@ -962,7 +1020,7 @@ def admin_login():
         ip = client_ip()
         key = '%s|%s' % (ip, email)
         if login_locked(key):
-            _sec_log.info('LOGIN_LOCKED ip=%s email=%s', ip, email)
+            _sec_log.info('LOGIN_LOCKED ip=%s email=%s', log_safe(ip), log_safe(email))
             error = '登录失败:邮箱或密码错误,或尝试次数过多,请 15 分钟后再试'
         else:
             status, _ = miab_query(email, password)
@@ -976,7 +1034,7 @@ def admin_login():
                 session.permanent = True
                 return redirect(url_for('admin_home'))
             record_attempt('loginfail', key)
-            _sec_log.info('LOGIN_FAIL ip=%s email=%s', ip, email)
+            _sec_log.info('LOGIN_FAIL ip=%s email=%s', log_safe(ip), log_safe(email))
             error = '登录失败:邮箱或密码错误,或该账号不是管理员'
     return render_template('login.html', error=error)
 

@@ -134,7 +134,10 @@ fail2ban-client reload
 - **安全响应头**:nosniff / X-Frame-Options DENY / Referrer-Policy no-referrer / CSP(含 frame-ancestors 'none')/ HSTS(仅 HTTPS)
 - **fail2ban**:独立 jail 匹配 `security.log` 的 LOGIN_FAIL / LOGIN_LOCKED / TOKEN404 / TOKEN429 行,maxretry 10 封 30 分钟(iptables http,https)
 - **进程沙箱**:systemd NoNewPrivileges / ProtectSystem=full / ProtectHome=read-only 等(maildir 目录是 MIAB 管的 `drwx------ mail:mail`,非 root 进不去,故保持 root + 沙箱)
-- **邮件渲染**:HTML 正文 iframe sandbox(无脚本)+ 远端资源默认剥离;附件文件名 RFC5987 编码;Maildir key 白名单校验防路径穿越
+- **邮件渲染**:HTML 正文 iframe sandbox(无脚本);远端图片默认由 CSP 拦截(`img-src` 不含 `https:`,仅 `?remote=1` 时放行),正则剥离只负责显示占位图;附件文件名 RFC5987 编码;Maildir key 白名单校验防路径穿越
+- **防恶意邮件拖垮服务**:HTML 剥标签为线性扫描、验证码提取只看正文前 200KB,正则量词均有上限
+- **日志防注入**:写入 `security.log` 的 IP / 邮箱先去掉空白和控制字符,无法伪造日志行骗 fail2ban 封 IP
+- **文件权限**:`onemail.db` / `security.log` / `secret_key` 启动时统一收紧为 600
 
 ## MIAB 升级注意事项
 
