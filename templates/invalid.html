@@ -1,46 +1,49 @@
-{% extends "base.html" %}
+{% extends "pickup_base.html" %}
 {% block title %}{% if kind == 'revoked' %}链接已被撤销{% elif kind == 'notfound' %}链接不存在{% else %}链接已过期{% endif %}{% endblock %}
 {% block content %}
-<div class="card bg-base-100 shadow-sm mt-12">
-  <div class="card-body items-center text-center py-14">
+<section class="card card--default mt-12">
+  <div class="card__content items-center py-12 text-center">
     {% if kind == 'revoked' %}
-    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-         class="text-base-content/40" aria-hidden="true">
+    <span class="flex size-16 items-center justify-center rounded-full bg-default text-muted">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="9"/>
       <path d="m5.5 5.5 13 13"/>
     </svg>
-    <h1 class="text-lg font-semibold mt-4">链接已被撤销</h1>
-    <p class="text-sm text-base-content/60">
+    </span>
+    <h1 class="mt-4 text-lg font-semibold">链接已被撤销</h1>
+    <p class="text-sm text-muted">
       此取件链接已被管理员停用,无法继续访问{% if email %} <span class="wrap-anywhere">{{ email }}</span> 的收件箱{% endif %}。<br>
       如需访问,请联系管理员重新生成。
     </p>
     {% elif kind == 'notfound' %}
-    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-         class="text-base-content/40" aria-hidden="true">
+    <span class="flex size-16 items-center justify-center rounded-full bg-default text-muted">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
       <path d="m4 4 16 16"/>
     </svg>
-    <h1 class="text-lg font-semibold mt-4">链接不存在</h1>
-    <p class="text-sm text-base-content/60">
+    </span>
+    <h1 class="mt-4 text-lg font-semibold">链接不存在</h1>
+    <p class="text-sm text-muted">
       此取件链接无效,请检查地址是否完整,<br>
       或联系管理员获取新链接。
     </p>
     {% else %}
-    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-         class="text-base-content/40" aria-hidden="true">
+    <span class="flex size-16 items-center justify-center rounded-full bg-default text-muted">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="9"/>
       <path d="M12 7v5l3 2"/>
     </svg>
-    <h1 class="text-lg font-semibold mt-4">链接已过期</h1>
-    <p class="text-sm text-base-content/60">
+    </span>
+    <h1 class="mt-4 text-lg font-semibold">链接已过期</h1>
+    <p class="text-sm text-muted">
       这个取件链接已过有效期,无法继续访问{% if email %} <span class="wrap-anywhere">{{ email }}</span> 的收件箱{% endif %}。<br>
       请联系管理员重新生成一个取件链接。
     </p>
     {% endif %}
   </div>
-</div>
+</section>
 {% endblock %}

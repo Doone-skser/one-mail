@@ -1,12 +1,16 @@
 {
   "name": "one-mail-ui",
   "private": true,
-  "description": "仅用于构建 static/app.css(tailwind + daisyUI),运行时不需要 node",
+  "description": "仅用于构建 static/app.css(管理端,tailwind + daisyUI)和 static/pickup.css(取件页,tailwind + HeroUI),运行时不需要 node",
   "scripts": {
-    "build": "tailwindcss -i src/app.css -o static/app.css --minify",
-    "watch": "tailwindcss -i src/app.css -o static/app.css --watch"
+    "build": "npm run build:admin && npm run build:pickup",
+    "build:admin": "tailwindcss -i src/app.css -o static/app.css --minify",
+    "build:pickup": "tailwindcss -i src/pickup.css -o static/pickup.css --minify",
+    "watch": "tailwindcss -i src/app.css -o static/app.css --watch",
+    "watch:pickup": "tailwindcss -i src/pickup.css -o static/pickup.css --watch"
   },
   "devDependencies": {
+    "@heroui/styles": "^3.2.7",
     "@tailwindcss/cli": "^4.1.14",
     "daisyui": "^5.1.29",
     "tailwindcss": "^4.1.14"

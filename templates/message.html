@@ -1,77 +1,73 @@
-{% extends "base.html" %}
+{% extends "pickup_base.html" %}
 {% block container_class %}max-w-4xl{% endblock %}
 {% block title %}{{ subject }}{% endblock %}
 {% block content %}
-<p><a class="link link-hover text-sm" href="/m/{{ token }}">← 返回列表</a></p>
+{% from "_icons.html" import icon %}
+<a class="button button--sm button--ghost -ml-2" href="/m/{{ token }}">← 返回列表</a>
 
 {% if code %}
-<div class="card bg-base-100 shadow-sm mt-4">
-  <div class="card-body items-center text-center py-8">
-    <div class="text-sm text-base-content/60">验证码</div>
+<section class="card card--default mt-3">
+  <div class="card__content items-center py-6 text-center">
+    <div class="text-sm text-muted">验证码</div>
     <span class="code-big code-hero-big">{{ code }}</span>
-    <button class="btn btn-primary btn-soft copy-btn mt-3" data-code="{{ code }}">复制验证码</button>
+    <button class="button button--primary copy-btn mt-3" type="button" data-code="{{ code }}">{{ icon('copy') }}复制验证码</button>
   </div>
-</div>
+</section>
 {% endif %}
 
-<div class="card bg-base-100 shadow-sm mt-4">
-  <div class="card-body">
-    <h1 class="card-title text-xl wrap-anywhere">{{ subject }}</h1>
-    <dl class="grid grid-cols-[4rem_minmax(0,1fr)] gap-y-1.5 text-sm mt-1">
-      <dt class="text-base-content/60">发件人</dt><dd class="break-all">{{ from_addr }}</dd>
-      <dt class="text-base-content/60">收件人</dt><dd class="break-all">{{ to_addr }}</dd>
-      <dt class="text-base-content/60">日期</dt><dd>{{ date }}</dd>
+<section class="card card--default mt-4">
+  <div class="card__content gap-3">
+    <h1 class="text-xl font-semibold wrap-anywhere">{{ subject }}</h1>
+    <dl class="grid grid-cols-[4rem_minmax(0,1fr)] gap-y-1.5 text-sm">
+      <dt class="text-muted">发件人</dt><dd class="break-all">{{ from_addr }}</dd>
+      <dt class="text-muted">收件人</dt><dd class="break-all">{{ to_addr }}</dd>
+      <dt class="text-muted">日期</dt><dd class="tabular-nums">{{ date }}</dd>
     </dl>
   </div>
-</div>
+</section>
 
 {% if html_body %}
-<div class="alert alert-soft mt-4 flex-row items-center justify-between gap-3 text-sm py-2">
+<div class="alert alert--default mt-4 items-center" role="status">
+  <div class="alert__content">
+    <div class="alert__title">{% if remote %}远端图片已加载{% else %}远端图片未加载{% endif %}</div>
+    <div class="alert__description">{% if remote %}发件人可能得知这封邮件已被打开。{% else %}为保护隐私,默认不加载邮件里的外部图片。{% endif %}</div>
+  </div>
   {% if remote %}
-  <span>远端图片已加载</span>
-  <a class="btn btn-sm" href="{{ request.path }}">点击屏蔽</a>
+  <a class="button button--sm button--tertiary" href="{{ request.path }}">点击屏蔽</a>
   {% else %}
-  <span>远端图片未加载</span>
-  <a class="btn btn-sm btn-primary btn-soft" href="{{ request.path }}?remote=1">点击加载</a>
+  <a class="button button--sm button--secondary" href="{{ request.path }}?remote=1">点击加载</a>
   {% endif %}
 </div>
 {% endif %}
 
-<div class="card bg-base-100 shadow-sm mt-4">
-  <div class="card-body">
+<section class="card card--default mt-4">
+  <div class="card__content">
     {% if text_body %}
     <pre class="mail-text">{{ text_body }}</pre>
     {% elif html_body %}
     <iframe id="mailframe" class="htmlmail" sandbox="allow-same-origin"
             srcdoc="{{ html_body }}" title="邮件正文"></iframe>
     {% else %}
-    <p class="text-sm text-base-content/60">(此邮件没有正文)</p>
+    <p class="text-sm text-muted">(此邮件没有正文)</p>
     {% endif %}
   </div>
-</div>
+</section>
 
 {% if atts %}
-<div class="card bg-base-100 shadow-sm mt-4">
-  <div class="card-body">
-    <h2 class="card-title text-base">附件({{ atts | length }})</h2>
-    <div class="overflow-x-auto">
-      <table class="table table-sm">
-        <tbody>
-          {% for i, fn, size in atts %}
-          <tr>
-            <td class="wrap-anywhere">{{ fn }}</td>
-            <td class="whitespace-nowrap text-base-content/60">{{ size | fmt_size }}</td>
-            <td class="text-right">
-              <a class="btn btn-sm"
-                 href="/m/{{ token }}/msg/{{ key | urlencode }}/att/{{ i }}">下载</a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
+<section class="card card--default mt-4">
+  <div class="card__header"><h2 class="card__title">附件({{ atts | length }})</h2></div>
+  <ul class="card__content gap-0 divide-y divide-separator">
+    {% for i, fn, size in atts %}
+    <li class="flex items-center gap-3 py-2.5">
+      <span class="text-muted">{{ icon('file', 'size-5') }}</span>
+      <span class="min-w-0 flex-1 text-sm wrap-anywhere">{{ fn }}</span>
+      <span class="text-sm whitespace-nowrap text-muted tabular-nums">{{ size | fmt_size }}</span>
+      <a class="button button--sm button--tertiary"
+         href="/m/{{ token }}/msg/{{ key | urlencode }}/att/{{ i }}">下载</a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
 {% endif %}
 
 {% if html_body and not text_body %}

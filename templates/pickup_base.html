@@ -1,0 +1,68 @@
+{# 取件页骨架(收件箱 / 邮件详情 / 链接失效页):HeroUI 样式(static/pickup.css)。
+   管理端和登录页用 base.html(daisyUI),两边样式互不引用。 #}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{% block title %}OneMail{% endblock %}</title>
+<script>
+// HeroUI 的深色主题靠 <html class="dark"> 切换:跟随系统设置,放在样式表之前避免闪白
+(function () {
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  function apply() { document.documentElement.classList.toggle('dark', mq.matches); }
+  apply();
+  if (mq.addEventListener) mq.addEventListener('change', apply);
+})();
+</script>
+<link rel="stylesheet" href="{{ url_for('static', filename='pickup.css') }}">
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+</head>
+<body class="min-h-screen">
+<header class="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur-md">
+  <div class="mx-auto flex h-14 w-full {{ self.container_class() }} items-center px-4">
+    <span class="flex items-center gap-2 font-semibold tracking-tight">
+      <img class="size-7" src="{{ url_for('static', filename='logo.png') }}" alt="">
+      <span>One<span class="text-accent">Mail</span> 取件</span>
+    </span>
+  </div>
+</header>
+<main class="mx-auto w-full {% block container_class %}max-w-3xl{% endblock %} px-4 pt-6 pb-12">
+  {% block content %}{% endblock %}
+</main>
+<script>
+// 复制按钮(.copy-btn,data-code 为要复制的内容):带"已复制 ✓"反馈
+function copyText(t, btn) {
+  function feedback() {
+    if (!btn || btn.dataset.copying) return;
+    btn.dataset.copying = '1';
+    var old = btn.innerHTML;  // 存 innerHTML:按钮里可能带图标
+    btn.textContent = '已复制 ✓';
+    setTimeout(function () {
+      btn.innerHTML = old;
+      delete btn.dataset.copying;
+    }, 1500);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t).then(feedback, function () { fallbackCopy(t); feedback(); });
+  } else {
+    fallbackCopy(t); feedback();
+  }
+}
+function fallbackCopy(t) {
+  var i = document.createElement('textarea');
+  i.value = t; i.style.position = 'fixed'; i.style.opacity = '0';
+  document.body.appendChild(i); i.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(i);
+}
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.copy-btn');
+  if (!btn) return;
+  copyText(btn.getAttribute('data-code'), btn);
+});
+</script>
+</body>
+</html>

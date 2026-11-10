@@ -1,0 +1,100 @@
+/* 取件页(收件箱 / 邮件详情 / 链接失效页)样式源文件 —— HeroUI v3 的纯 CSS 包
+   (@heroui/styles,不需要 React)。npm run build 编译成 static/pickup.css。
+   管理端仍用 daisyUI(src/app.css):两套的 .card / .alert / .link 等类名冲突,
+   所以分成两个互不引用的样式文件。 */
+@layer theme, base, components, utilities;
+
+/* source(none):只扫描下面列出的取件页模板,不把管理端用到的类也编进来 */
+@import "tailwindcss" source(none);
+@source "../templates/pickup_base.html";
+@source "../templates/_icons.html";
+@source "../templates/inbox.html";
+@source "../templates/message.html";
+@source "../templates/invalid.html";
+
+/* HeroUI 组件样式依赖的公共部分 */
+@import "@heroui/styles/base" layer(base);
+@import "@heroui/styles/utilities";
+@import "@heroui/styles/variants";
+@import "@heroui/styles/themes/default" layer(theme);
+
+/* 只引入用到的组件 */
+@import "@heroui/styles/components/button.css" layer(components);
+@import "@heroui/styles/components/card.css" layer(components);
+@import "@heroui/styles/components/chip.css" layer(components);
+@import "@heroui/styles/components/tabs.css" layer(components);
+@import "@heroui/styles/components/link.css" layer(components);
+@import "@heroui/styles/components/alert.css" layer(components);
+
+/* 中文字体栈 */
+@theme {
+  --font-sans: -apple-system, "PingFang SC", "Microsoft YaHei", "Helvetica Neue",
+               ui-sans-serif, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  /* 验证码大字:等宽 + 等宽数字,拉开字距方便抄写 */
+  .code-big {
+    font-family: var(--font-mono);
+    font-size: 1.875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+  }
+  .code-hero-big {
+    display: block;
+    font-size: 2.75rem;
+    letter-spacing: 0.14em;
+  }
+  @media (width < 40rem) {
+    .code-big { font-size: 1.625rem; }
+    .code-hero-big { font-size: 2.125rem; }
+  }
+
+  /* 邮件正文 iframe:高度由 message.html 的脚本量完内容后设置。
+     HTML 邮件普遍按白底设计,深色模式下也保持白底 */
+  .htmlmail {
+    width: 100%;
+    min-height: 70vh;
+    border: none;
+    display: block;
+    background: #fff;
+    border-radius: var(--radius-xl);
+  }
+
+  /* 纯文本正文:保留换行,用正文字体而不是等宽 */
+  .mail-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.7;
+  }
+
+  /* 「自动收件中」的呼吸小绿点 */
+  .live-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--success);
+    flex: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .live-dot { animation: live-pulse 2.4s ease-in-out infinite; }
+  }
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.75); }
+  }
+}
