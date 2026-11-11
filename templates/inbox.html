@@ -32,7 +32,7 @@
 </section>
 
 {% if mails %}
-<div class="mt-4 flex flex-col gap-3">
+<div id="mail-list" class="mt-4 flex flex-col gap-3">
   {% for m in mails %}
   {% set newest = loop.first and page == 1 %}
   <article class="card card--default{% if newest %} ring-2 ring-accent/40{% endif %}">
@@ -74,7 +74,7 @@
 </div>
 
 {% if pages > 1 %}
-<nav class="mt-5 flex items-center justify-center gap-3" aria-label="分页">
+<nav id="pagination" class="mt-5 flex items-center justify-center gap-3" aria-label="分页">
   {% if page > 1 %}
   <a class="button button--sm button--tertiary" href="?view={{ view }}&page={{ page - 1 }}">上一页</a>
   {% endif %}
@@ -83,6 +83,10 @@
   <a class="button button--sm button--tertiary" href="?view={{ view }}&page={{ page + 1 }}">下一页</a>
   {% endif %}
 </nav>
+<div class="mt-5 text-center">
+  <button id="load-more" class="button button--sm button--tertiary hidden" type="button"
+          aria-live="polite">加载更多</button>
+</div>
 {% endif %}
 
 {% else %}
@@ -123,6 +127,60 @@
       .catch(function () { setTimeout(poll, 2000); });
   }
   setTimeout(poll, 2000);
+})();
+// 接近底部时自动加载下一页;保留普通分页作为无 JS / 旧浏览器回退。
+(function () {
+  var list = document.getElementById('mail-list');
+  var pager = document.getElementById('pagination');
+  var more = document.getElementById('load-more');
+  if (!list || !pager || !more || !('IntersectionObserver' in window)) return;
+  var nextPage = {{ page + 1 }};
+  var totalPages = {{ pages }};
+  if (nextPage > totalPages) return;
+  var loading = false;
+  var observer;
+  pager.classList.add('hidden');
+  more.classList.remove('hidden');
+
+  function loadNext() {
+    if (loading || nextPage > totalPages) return;
+    loading = true;
+    more.disabled = true;
+    more.textContent = '正在加载…';
+    fetch(location.pathname + '?view={{ view }}&page=' + nextPage,
+          { credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('load failed');
+        return r.text();
+      })
+      .then(function (html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var incoming = doc.getElementById('mail-list');
+        if (!incoming || !incoming.children.length) throw new Error('empty page');
+        Array.prototype.forEach.call(incoming.children, function (card) {
+          list.appendChild(document.importNode(card, true));
+        });
+        nextPage++;
+        loading = false;
+        more.disabled = false;
+        if (nextPage > totalPages) {
+          observer.unobserve(more);
+          more.classList.add('hidden');
+        } else {
+          more.textContent = '加载更多';
+        }
+      })
+      .catch(function () {
+        loading = false;
+        more.disabled = false;
+        more.textContent = '加载失败，点击重试';
+      });
+  }
+  more.addEventListener('click', loadNext);
+  observer = new IntersectionObserver(function (entries) {
+    if (entries[0].isIntersecting) loadNext();
+  }, { rootMargin: '300px 0px' });
+  observer.observe(more);
 })();
 </script>
 {% endblock %}
