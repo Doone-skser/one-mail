@@ -21,6 +21,7 @@ from email import policy
 from email.header import decode_header, make_header
 from email.parser import BytesParser
 from email.utils import parsedate_to_datetime
+from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
 from flask import (Flask, abort, g, redirect, render_template, request,
@@ -520,6 +521,79 @@ def msg_plain_text(msg, text_body, html_body):
     return strip_html(html_body)
 
 
+# ---------- 登录链接提取 ----------
+
+_MAGIC_URL_RE = re.compile(r'magic[-_./\s]*link|(?:sign|log)[-_./]*in', re.I)
+_MAGIC_CTA_RE = re.compile(
+    r'magic[-\s]*link|sign[-\s]*in|log[-\s]*in|verify(?:\s+your)?\s+email'
+    r'|登录|登陆|验证邮箱|验证邮件', re.I)
+_TEXT_URL_RE = re.compile(r'https?://[^\s<>"\']{1,8192}', re.I)
+
+
+class _MailAnchorParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.links = []
+        self._href = None
+        self._text = []
+
+    def _finish(self):
+        if self._href:
+            self.links.append((self._href.strip(), _WS_RE.sub(' ', ''.join(self._text))))
+        self._href = None
+        self._text = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() == 'a':
+            self._finish()
+            self._href = dict(attrs).get('href')
+            self._text = []
+
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag.lower() == 'a':
+            self._finish()
+
+
+def _magic_link_score(url, context=''):
+    if len(url) > 8192:
+        return 0
+    try:
+        parsed = urllib.parse.urlsplit(url)
+    except ValueError:
+        return 0
+    if parsed.scheme.lower() not in ('http', 'https') or not parsed.netloc:
+        return 0
+    if _MAGIC_URL_RE.search(url):
+        return 3 if 'magic' in url.lower() else 2
+    return 1 if _MAGIC_CTA_RE.search(context) else 0
+
+
+def extract_magic_link(text_body, html_body):
+    """从 HTML 按钮或纯文本正文中提取登录链接,提取不到返回 None。"""
+    best_url, best_score = None, 0
+    if html_body:
+        parser = _MailAnchorParser()
+        parser.feed(html_body[:CODE_SCAN_MAX])
+        parser.close()
+        parser._finish()
+        for url, label in parser.links:
+            score = _magic_link_score(url, label)
+            if score > best_score:
+                best_url, best_score = url, score
+    text = text_body or strip_html(html_body)
+    for match in _TEXT_URL_RE.finditer((text or '')[:CODE_SCAN_MAX]):
+        url = html_mod.unescape(match.group()).rstrip('.,;:!?。，；：')
+        context = (text or '')[max(0, match.start() - 120):match.start()]
+        score = _magic_link_score(url, context)
+        if score > best_score:
+            best_url, best_score = url, score
+    return best_url
+
+
 # ---------- 工具 ----------
 
 def client_ip():
@@ -806,7 +880,7 @@ def index():
     return redirect(url_for('admin_login'))
 
 
-# 验证码邮件缓存:(maildir, key) -> (mtime, entry|None),entry 为展示用 dict。
+# 邮件展示缓存:(maildir, key) -> (mtime, entry|None),entry 为展示用 dict。
 # 轮询接口每 2 秒跑一次,靠 mtime 命中缓存避免反复解析全部邮件。
 _code_cache = {}
 
@@ -822,12 +896,14 @@ def _entry_for(maildir, key, mt):
         text_body, html_body, _atts = extract_parts(msg)
         code = extract_code(hdr(msg, 'Subject'),
                             msg_plain_text(msg, text_body, html_body))
-        if code is not None:
+        magic_link = extract_magic_link(text_body, html_body)
+        if code is not None or magic_link is not None:
             entry = {
                 'key': key,
                 'from': hdr(msg, 'From'),
                 'subject': hdr(msg, 'Subject') or '(无主题)',
                 'code': code,
+                'magic_link': magic_link,
                 'date': msg_date(msg, mt).strftime('%Y-%m-%d %H:%M'),
             }
     if len(_code_cache) > 20000:
@@ -841,7 +917,7 @@ def scan_code_mails(maildir):
     code_mails = []
     for key, mt in list_messages(maildir):
         entry = _entry_for(maildir, key, mt)
-        if entry is not None:
+        if entry is not None and entry['code'] is not None:
             code_mails.append(entry)
     return code_mails
 
@@ -890,9 +966,9 @@ def inbox(token):
              request.headers.get('User-Agent', '')[:500]))
         db.commit()
 
-    view = 'all' if request.args.get('view') == 'all' else 'code'
+    view = 'code' if request.args.get('view') == 'code' else 'all'
     if view == 'all':
-        # 全部邮件视图:不过滤;验证码仍尝试提取(走缓存),有就展示
+        # 全部邮件视图:不过滤;验证码和登录链接仍尝试提取(走缓存),有就展示
         entries = list_messages(maildir)
         total = len(entries)
         latest = entries[0][0] if entries else None
@@ -913,6 +989,7 @@ def inbox(token):
                 'from': hdr(msg, 'From'),
                 'subject': hdr(msg, 'Subject') or '(无主题)',
                 'code': cached['code'] if cached else None,
+                'magic_link': cached['magic_link'] if cached else None,
                 'date': msg_date(msg, mt).strftime('%Y-%m-%d %H:%M'),
             })
     else:
@@ -935,14 +1012,14 @@ def inbox(token):
 @app.route('/m/<token>/check')
 def inbox_check(token):
     """轻量轮询接口:返回邮件总数和最新一封的标识,不写访问日志。
-    默认验证码视图;?view=all 返回整个收件箱的统计。"""
+    默认全部邮件视图;?view=code 返回验证码邮件的统计。"""
     link = get_link(token)
     if link is None or not link['active'] or link_expired(link):
         return {'error': 'invalid'}, 404
     maildir = maildir_path(link['email'])
     if maildir is None:
         return {'error': 'invalid'}, 404
-    if request.args.get('view') == 'all':
+    if request.args.get('view') != 'code':
         entries = list_messages(maildir)
         return {'count': len(entries),
                 'latest': entries[0][0] if entries else None}
@@ -965,6 +1042,7 @@ def message_view(token, key):
     text_body, html_body, atts = extract_parts(msg)
     code = extract_code(hdr(msg, 'Subject'),
                         msg_plain_text(msg, text_body, html_body))
+    magic_link = extract_magic_link(text_body, html_body)
     # 远端资源默认不加载;?remote=1 时渲染原始 HTML
     remote = request.args.get('remote') == '1'
     g.allow_remote_img = remote
@@ -976,7 +1054,7 @@ def message_view(token, key):
         subject=hdr(msg, 'Subject') or '(无主题)',
         from_addr=hdr(msg, 'From'), to_addr=hdr(msg, 'To'),
         date=msg_date(msg).strftime('%Y-%m-%d %H:%M:%S'),
-        code=code, remote=remote,
+        code=code, magic_link=magic_link, remote=remote,
         text_body=text_body, html_body=html_body, atts=atts)
 
 

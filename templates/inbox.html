@@ -13,11 +13,11 @@
       <div class="tabs__list-container">
         <div class="tabs__list" data-orientation="horizontal">
           <a class="tabs__tab w-auto gap-1.5 whitespace-nowrap" href="/m/{{ token }}"
-             {% if view != 'all' %}data-selected="true" aria-current="page"{% endif %}>
-            {{ icon('key') }}验证码{% if view != 'all' %}<span class="tabs__indicator"></span>{% endif %}</a>
-          <a class="tabs__tab w-auto gap-1.5 whitespace-nowrap" href="/m/{{ token }}?view=all"
              {% if view == 'all' %}data-selected="true" aria-current="page"{% endif %}>
             {{ icon('mail') }}全部邮件{% if view == 'all' %}<span class="tabs__indicator"></span>{% endif %}</a>
+          <a class="tabs__tab w-auto gap-1.5 whitespace-nowrap" href="/m/{{ token }}?view=code"
+             {% if view != 'all' %}data-selected="true" aria-current="page"{% endif %}>
+            {{ icon('key') }}验证码{% if view != 'all' %}<span class="tabs__indicator"></span>{% endif %}</a>
         </div>
       </div>
     </nav>
@@ -41,6 +41,10 @@
       <div class="flex flex-wrap items-center gap-3">
         <span class="code-big">{{ m.code }}</span>
         <button class="button button--sm button--primary copy-btn" type="button" data-code="{{ m.code }}">{{ icon('copy') }}复制</button>
+        {% if m.magic_link %}
+        <button class="button button--sm button--secondary copy-btn" type="button" data-code="{{ m.magic_link }}"
+                aria-label="复制 {{ m.subject }} 的登录链接">{{ icon('copy') }}复制登录链接</button>
+        {% endif %}
         {% if newest %}<span class="chip chip--accent chip--soft ml-auto"><span class="chip__label">最新</span></span>{% endif %}
       </div>
       <div class="mt-2 flex flex-wrap items-baseline gap-2 text-sm text-muted">
@@ -50,9 +54,13 @@
         <time class="whitespace-nowrap tabular-nums sm:ml-auto">{{ m.date }}</time>
       </div>
       {% else %}
-      <div class="flex items-start gap-3">
-        <a class="link min-w-0 text-foreground wrap-anywhere"
+      <div class="flex flex-wrap items-start gap-3">
+        <a class="link min-w-0 flex-1 text-foreground wrap-anywhere"
            href="/m/{{ token }}/msg/{{ m.key | urlencode }}">{{ m.subject }}</a>
+        {% if m.magic_link %}
+        <button class="button button--sm button--secondary copy-btn" type="button" data-code="{{ m.magic_link }}"
+                aria-label="复制 {{ m.subject }} 的登录链接">{{ icon('copy') }}复制登录链接</button>
+        {% endif %}
         {% if newest %}<span class="chip chip--accent chip--soft ml-auto"><span class="chip__label">最新</span></span>{% endif %}
       </div>
       <div class="mt-1 flex flex-wrap items-baseline gap-2 text-sm text-muted">
@@ -101,7 +109,7 @@
 // fetch 失败(断网等)静默重试。check 接口按当前视图区分统计口径。
 (function () {
   var init = { count: {{ total }}, latest: {{ latest | tojson }} };
-  var checkUrl = '/m/{{ token }}/check{% if view == 'all' %}?view=all{% endif %}';
+  var checkUrl = '/m/{{ token }}/check{% if view != 'all' %}?view=code{% endif %}';
   function poll() {
     fetch(checkUrl, { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })

@@ -15,6 +15,20 @@
 </section>
 {% endif %}
 
+{% if magic_link %}
+<section class="card card--default mt-3" aria-labelledby="magic-link-title">
+  <div class="card__content gap-3">
+    <h2 id="magic-link-title" class="text-sm font-medium text-muted">登录链接</h2>
+    <div class="flex min-w-0 items-center rounded-lg border border-border bg-default/50 p-1.5 pl-3">
+      <div class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-sm"
+           title="{{ magic_link }}">{{ magic_link }}</div>
+      <button class="button button--sm button--primary copy-btn ml-2 shrink-0" type="button"
+              data-code="{{ magic_link }}" aria-label="复制登录链接">{{ icon('copy') }}复制</button>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 <section class="card card--default mt-4">
   <div class="card__content gap-3">
     <h1 class="text-xl font-semibold wrap-anywhere">{{ subject }}</h1>
