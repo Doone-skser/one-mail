@@ -43,7 +43,7 @@
         <button class="button button--sm button--primary copy-btn" type="button" data-code="{{ m.code }}">{{ icon('copy') }}复制</button>
         {% if m.magic_link %}
         <button class="button button--sm button--secondary copy-btn" type="button" data-code="{{ m.magic_link }}"
-                aria-label="复制 {{ m.subject }} 的登录链接">{{ icon('copy') }}复制登录链接</button>
+                aria-label="复制 {{ m.subject }} 的登录链接">{{ icon('copy') }}复制A/登录链接</button>
         {% endif %}
         {% if newest %}<span class="chip chip--accent chip--soft ml-auto"><span class="chip__label">最新</span></span>{% endif %}
       </div>
@@ -59,7 +59,7 @@
            href="/m/{{ token }}/msg/{{ m.key | urlencode }}">{{ m.subject }}</a>
         {% if m.magic_link %}
         <button class="button button--sm button--secondary copy-btn" type="button" data-code="{{ m.magic_link }}"
-                aria-label="复制 {{ m.subject }} 的登录链接">{{ icon('copy') }}复制登录链接</button>
+                aria-label="复制 {{ m.subject }} 的登录链接">{{ icon('copy') }}复制A/登录链接</button>
         {% endif %}
         {% if newest %}<span class="chip chip--accent chip--soft ml-auto"><span class="chip__label">最新</span></span>{% endif %}
       </div>

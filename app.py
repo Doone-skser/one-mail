@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from email import policy
 from email.header import decode_header, make_header
 from email.parser import BytesParser
-from email.utils import parsedate_to_datetime
+from email.utils import parseaddr, parsedate_to_datetime
 from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
@@ -594,6 +594,14 @@ def extract_magic_link(text_body, html_body):
     return best_url
 
 
+def extract_anthropic_magic_link(from_addr, text_body, html_body):
+    """只展示 Anthropic 邮件的登录链接,发件地址域名必须精确匹配。"""
+    address = parseaddr(from_addr)[1].lower()
+    if not address.endswith('@mail.anthropic.com'):
+        return None
+    return extract_magic_link(text_body, html_body)
+
+
 # ---------- 工具 ----------
 
 def client_ip():
@@ -896,11 +904,12 @@ def _entry_for(maildir, key, mt):
         text_body, html_body, _atts = extract_parts(msg)
         code = extract_code(hdr(msg, 'Subject'),
                             msg_plain_text(msg, text_body, html_body))
-        magic_link = extract_magic_link(text_body, html_body)
+        from_addr = hdr(msg, 'From')
+        magic_link = extract_anthropic_magic_link(from_addr, text_body, html_body)
         if code is not None or magic_link is not None:
             entry = {
                 'key': key,
-                'from': hdr(msg, 'From'),
+                'from': from_addr,
                 'subject': hdr(msg, 'Subject') or '(无主题)',
                 'code': code,
                 'magic_link': magic_link,
@@ -1042,7 +1051,8 @@ def message_view(token, key):
     text_body, html_body, atts = extract_parts(msg)
     code = extract_code(hdr(msg, 'Subject'),
                         msg_plain_text(msg, text_body, html_body))
-    magic_link = extract_magic_link(text_body, html_body)
+    from_addr = hdr(msg, 'From')
+    magic_link = extract_anthropic_magic_link(from_addr, text_body, html_body)
     # 远端资源默认不加载;?remote=1 时渲染原始 HTML
     remote = request.args.get('remote') == '1'
     g.allow_remote_img = remote
@@ -1052,7 +1062,7 @@ def message_view(token, key):
     return render_template(
         'message.html', email=link['email'], token=token, key=key,
         subject=hdr(msg, 'Subject') or '(无主题)',
-        from_addr=hdr(msg, 'From'), to_addr=hdr(msg, 'To'),
+        from_addr=from_addr, to_addr=hdr(msg, 'To'),
         date=msg_date(msg).strftime('%Y-%m-%d %H:%M:%S'),
         code=code, magic_link=magic_link, remote=remote,
         text_body=text_body, html_body=html_body, atts=atts)
