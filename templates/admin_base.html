@@ -21,7 +21,7 @@
     </div>
   </aside>
 
-  <div class="min-w-0">
+  <div class="min-w-0 flex min-h-screen flex-col">
     <header class="sticky top-0 z-30 flex items-center justify-between gap-2 h-14 px-4 lg:px-8
                    bg-base-100/85 backdrop-blur border-b border-base-content/10">
       <a class="flex items-center gap-2 lg:invisible" href="/admin/">
@@ -36,9 +36,13 @@
         <a class="btn btn-ghost btn-sm" href="/admin/logout">{{ icon('logout') }}退出</a>
       </nav>
     </header>
-    <main id="admin-main" class="mx-auto w-full {% block container_class %}max-w-7xl{% endblock %} px-4 lg:px-8 pt-6 pb-12">
+    <main id="admin-main" class="mx-auto w-full flex-1 {% block container_class %}max-w-7xl{% endblock %} px-4 lg:px-8 pt-6 pb-12">
       {% block content %}{% endblock %}
     </main>
+    <footer class="px-4 pb-6 text-center text-xs text-base-content/50">
+      <a class="link link-hover" href="https://github.com/Doone-skser/one-mail"
+         target="_blank" rel="noopener noreferrer">GitHub · Doone-skser/one-mail</a>
+    </footer>
   </div>
 </div>
 <script>
