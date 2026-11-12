@@ -130,6 +130,8 @@
           <input type="text" name="local" required autocomplete="off" maxlength="64"
                  placeholder="用户名,如 hello" aria-label="邮箱用户名" aria-describedby="mailbox-availability"
                  class="input flex-1 min-w-0" id="add-box-local">
+          <button class="btn btn-sm" type="button" id="refresh-name-btn"
+                  title="刷新随机姓名" aria-label="刷新随机姓名">{{ icon('refresh') }}刷新</button>
           <span>@</span>
           <select name="domain" aria-label="域名" class="select w-auto" id="add-box-domain">
             {% for d in domains %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
@@ -312,7 +314,7 @@
     input.value = initParams.get('q') || '';
     noteOnly.checked = initParams.get('note') === '1';
     if (input.value) applyFilter();
-    // 添加邮箱:自动生成"名+姓",手动输入停止 2 秒后检查是否可用
+    // 添加邮箱:自动生成"名+姓",可手动刷新,输入停止 1 秒后检查是否可用
     function initMailboxCheck() {
       var form = document.getElementById('add-box-form');
       var field = document.getElementById('add-box-local');
@@ -379,24 +381,26 @@
       function queueCheck(delay) {
         clearTimeout(timer);
         requestId++;
-        setStatus(delay ? '停止输入 2 秒后自动检查' : '正在生成并检查…', '', false);
+        setStatus(delay ? '停止输入 1 秒后自动检查' : '正在生成并检查…', '', false);
         timer = setTimeout(checkMailbox, delay);
       }
       field.addEventListener('input', function () {
         autoName = false;
         retries = 0;
-        queueCheck(2000);
+        queueCheck(1000);
       });
       domain.addEventListener('change', function () { queueCheck(0); });
       form.addEventListener('submit', function (e) {
         if (submit.disabled) e.preventDefault();
       });
-      return function () {
+      function regenerate() {
         autoName = true;
         retries = 0;
         field.value = randomName();
         queueCheck(0);
-      };
+      }
+      document.getElementById('refresh-name-btn').addEventListener('click', regenerate);
+      return regenerate;
     }
     // 弹窗打开(关闭逻辑在 base.html:✕ / 遮罩点击)
     function bindModal(btnId, modalId, focusSel, onOpen) {
