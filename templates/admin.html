@@ -121,19 +121,21 @@
     <p class="text-sm text-base-content/60 mt-2">
       在邮件服务器上创建新邮箱并预建 Maildir,取件链接立即可用。
     </p>
-    <form method="post" action="/admin/mailboxes/add">
+    <form method="post" action="/admin/mailboxes/add" id="add-box-form">
       <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
       <input type="hidden" name="next" value="/admin/">
       <fieldset class="fieldset">
         <legend class="fieldset-legend">邮箱地址</legend>
         <div class="flex items-center gap-2">
-          <input type="text" name="local" required autocomplete="off"
-                 placeholder="用户名,如 hello" aria-label="邮箱用户名" class="input flex-1 min-w-0">
+          <input type="text" name="local" required autocomplete="off" maxlength="64"
+                 placeholder="用户名,如 hello" aria-label="邮箱用户名" aria-describedby="mailbox-availability"
+                 class="input flex-1 min-w-0" id="add-box-local">
           <span>@</span>
-          <select name="domain" aria-label="域名" class="select w-auto">
+          <select name="domain" aria-label="域名" class="select w-auto" id="add-box-domain">
             {% for d in domains %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
           </select>
         </div>
+        <p id="mailbox-availability" class="min-h-4 text-xs text-base-content/60" aria-live="polite"></p>
       </fieldset>
       <fieldset class="fieldset">
         <legend class="fieldset-legend">密码</legend>
@@ -150,12 +152,12 @@
         <select name="link_ttl" class="select w-full" aria-label="取件链接有效期">
           <option value="1">有效期 1 天</option>
           <option value="7">有效期 7 天</option>
-          <option value="30" selected>有效期 30 天</option>
-          <option value="0">永久有效</option>
+          <option value="30">有效期 30 天</option>
+          <option value="0" selected>永久有效</option>
           <option value="none">不创建</option>
         </select>
       </fieldset>
-      <div class="modal-action"><button class="btn btn-primary" type="submit">创建邮箱</button></div>
+      <div class="modal-action"><button class="btn btn-primary" type="submit" id="add-box-submit">创建邮箱</button></div>
     </form>
   </div>
 </div>
@@ -310,12 +312,99 @@
     input.value = initParams.get('q') || '';
     noteOnly.checked = initParams.get('note') === '1';
     if (input.value) applyFilter();
+    // 添加邮箱:自动生成"名+姓",手动输入停止 2 秒后检查是否可用
+    function initMailboxCheck() {
+      var form = document.getElementById('add-box-form');
+      var field = document.getElementById('add-box-local');
+      var domain = document.getElementById('add-box-domain');
+      var status = document.getElementById('mailbox-availability');
+      var submit = document.getElementById('add-box-submit');
+      var firstNames = ['olivia', 'emma', 'amelia', 'sophia', 'charlotte', 'isla',
+                        'ava', 'mia', 'lucas', 'noah', 'oliver', 'elijah', 'james',
+                        'henry', 'leo', 'ethan', 'mason', 'logan', 'lily', 'grace'];
+      var lastNames = ['smith', 'johnson', 'brown', 'taylor', 'miller', 'wilson',
+                       'moore', 'davis', 'anderson', 'thomas', 'jackson', 'white',
+                       'harris', 'martin', 'thompson', 'garcia', 'clark', 'lewis',
+                       'walker', 'hall'];
+      var timer = null;
+      var requestId = 0;
+      var autoName = false;
+      var retries = 0;
+
+      function randomName() {
+        var first = firstNames[Math.floor(Math.random() * firstNames.length)];
+        var last = lastNames[Math.floor(Math.random() * lastNames.length)];
+        return first + last;
+      }
+      function setStatus(text, kind, canSubmit) {
+        status.textContent = text;
+        status.className = 'min-h-4 text-xs ' + (
+          kind === 'ok' ? 'text-success' :
+          kind === 'error' ? 'text-error' : 'text-base-content/60');
+        submit.disabled = !canSubmit;
+      }
+      function checkMailbox() {
+        clearTimeout(timer);
+        var local = field.value.trim().toLowerCase();
+        var selectedDomain = domain.value;
+        var currentRequest = ++requestId;
+        if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(local)) {
+          setStatus('请输入 1～64 位字母、数字、点、下划线或连字符', 'error', false);
+          return;
+        }
+        setStatus('正在检查 ' + local + '@' + selectedDomain + ' …', '', false);
+        fetch('/admin/mailboxes/check?local=' + encodeURIComponent(local) +
+              '&domain=' + encodeURIComponent(selectedDomain), { credentials: 'same-origin' })
+          .then(function (res) {
+            return res.json().then(function (data) {
+              if (currentRequest !== requestId) return;
+              if (data.available) {
+                setStatus(data.email + ' 可以使用', 'ok', true);
+              } else if (data.email && autoName && retries < 10) {
+                retries++;
+                field.value = randomName();
+                checkMailbox();
+              } else if (data.email) {
+                setStatus(data.email + ' 已存在，请换一个', 'error', false);
+              } else {
+                setStatus(data.error || '检查失败', 'error', res.status >= 500);
+              }
+            });
+          })
+          .catch(function () {
+            if (currentRequest !== requestId) return;
+            setStatus('暂时无法自动检查，提交时将再次确认', 'error', true);
+          });
+      }
+      function queueCheck(delay) {
+        clearTimeout(timer);
+        requestId++;
+        setStatus(delay ? '停止输入 2 秒后自动检查' : '正在生成并检查…', '', false);
+        timer = setTimeout(checkMailbox, delay);
+      }
+      field.addEventListener('input', function () {
+        autoName = false;
+        retries = 0;
+        queueCheck(2000);
+      });
+      domain.addEventListener('change', function () { queueCheck(0); });
+      form.addEventListener('submit', function (e) {
+        if (submit.disabled) e.preventDefault();
+      });
+      return function () {
+        autoName = true;
+        retries = 0;
+        field.value = randomName();
+        queueCheck(0);
+      };
+    }
     // 弹窗打开(关闭逻辑在 base.html:✕ / 遮罩点击)
-    function bindModal(btnId, modalId, focusSel) {
+    function bindModal(btnId, modalId, focusSel, onOpen) {
       var btn = document.getElementById(btnId);
       var modal = document.getElementById(modalId);
       btn.addEventListener('click', function () {
         modal.classList.add('modal-open');
+        if (onOpen) onOpen();
         var f = modal.querySelector(focusSel);
         if (f) f.focus();
       });
@@ -331,7 +420,7 @@
       });
     }
     bindModal('new-link-btn', 'new-link-modal', 'select[name=email]');
-    bindModal('add-box-btn', 'add-box-modal', 'input[name=local]');
+    bindModal('add-box-btn', 'add-box-modal', 'input[name=local]', initMailboxCheck());
   }
   initAdmin();
 

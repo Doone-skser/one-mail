@@ -1225,6 +1225,28 @@ def admin_generate():
 LOCAL_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
 
 
+@app.route('/admin/mailboxes/check')
+def admin_mailbox_check():
+    """检查待创建的邮箱是否可用,供添加邮箱表单实时调用。"""
+    if not session.get('admin'):
+        return {'error': '登录已失效'}, 401
+    creds = get_admin_creds()
+    if creds is None:
+        return {'error': '登录已失效'}, 401
+    local = request.args.get('local', '').strip().lower()
+    domain = request.args.get('domain', '').strip().lower()
+    if not LOCAL_RE.match(local):
+        return {'available': False, 'error': '邮箱用户名格式不正确'}, 400
+    boxes = miab_users(*creds)
+    if boxes is None:
+        return {'available': False, 'error': '暂时无法查询邮箱列表'}, 503
+    domains = {b.split('@', 1)[1] for b in boxes if '@' in b}
+    if domain not in domains:
+        return {'available': False, 'error': '域名不受本服务器托管'}, 400
+    email = '%s@%s' % (local, domain)
+    return {'available': email not in boxes, 'email': email}
+
+
 @app.route('/admin/mailboxes/add', methods=['POST'])
 def admin_add_mailbox():
     """添加新邮箱:调 MIAB API 建号,再直接预建 Maildir(cur/new/tmp),
