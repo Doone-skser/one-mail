@@ -39,6 +39,9 @@ OneMail 运行在 [Mail-in-a-Box](https://mailinabox.email/)(MIAB)服务器上:�
 - **邮箱备注**与实时搜索
 - **访问日志**:每条链接的访问时间、IP、User-Agent
 - **邮件管理**(`/admin/mails`):跨服务器上全部邮箱搜索邮件(主题 / 发件人 / 收件人,可勾选同时搜正文),可按邮箱筛选、只看未读;列表直接显示验证码,支持查看邮件详情、下载附件、单封或批量删除(直接删 Maildir 文件,不可恢复)
+- **数据统计**(`/admin/stats`,首页顶部也有概要卡片):邮件总数/未读、今日新邮件、今日验证码、有效链接与今日访问;近 7 天收件柱状图、邮件最多的邮箱、今日验证码列表、最近活跃链接
+- **启动预读**:服务启动后后台线程把全部邮件头和近 7 天邮件的验证码读进缓存,首次打开邮件管理/统计页无需等待
+- 管理端与取件页同一套 HeroUI 设计风格,跟随系统浅色/深色模式
 
 ## 快速部署
 
@@ -97,6 +100,7 @@ systemctl restart onemail
 | `MASKED_MAILBOXES` | `{"masked@example.com"}` | 在失效提示页上打码显示的邮箱(如 `ma**@example.com`);链接有效时始终显示完整地址 |
 | `PER_PAGE` | `20` | 收件箱每页封数 |
 | `MAIL_BODY_SCAN_MAX` | `3000` | 邮件管理勾选「搜索正文」时最多扫描最新多少封的正文 |
+| `PREWARM_DAYS` | `7` | 启动预读时,最近多少天的邮件额外预先提取验证码;设环境变量 `ONEMAIL_NO_PREWARM=1` 可关闭预读 |
 | `TTL_CHOICES` | 1 / 7 / 30 天、永久 | 生成和延期链接时的有效期选项 |
 | `USERS_CACHE_SEC` | `300` | 邮箱列表缓存秒数 |
 | `LOG_THROTTLE_SEC` | `60` | 同一链接的访问日志节流秒数 |
@@ -137,12 +141,12 @@ systemctl restart onemail
 
 技术栈:Python 3.10+、Flask 3、gunicorn、sqlite3;前端是 Jinja2 模板 + 原生 JS,没有前端框架。
 
-界面有两套样式,互不引用(两个库的 `.card`、`.alert` 等类名会冲突):
+管理端和取件页用同一个组件库、同一套设计变量,但分别编译成两个样式文件,各自只包含用到的组件:
 
 | 页面 | 组件库 | 源文件 | 编译产物 |
 |---|---|---|---|
 | 取件页(收件箱、邮件详情、失效页) | [HeroUI](https://heroui.com/) v3 的纯 CSS 包 `@heroui/styles` | `src/pickup.css` | `static/pickup.css` |
-| 管理端、登录页 | [daisyUI](https://daisyui.com/) 5 | `src/app.css` | `static/app.css` |
+| 管理端、登录页 | 同上;弹窗/下拉/选择框用原生 `<dialog>`/`<details>`/`<select>` 套 HeroUI 设计变量 | `src/app.css` | `static/app.css` |
 
 两者都基于 Tailwind CSS 4。Tailwind 按模板里出现的类名按需生成样式,所以**改完模板要重新编译**,并把编译产物一起提交:
 
@@ -170,13 +174,15 @@ one-mail/
 │   ├── inbox.html          # 取件页:收件箱
 │   ├── message.html        # 取件页:邮件详情
 │   ├── invalid.html        # 取件页:链接失效提示
-│   ├── base.html           # 管理端骨架(daisyUI)
+│   ├── base.html           # 管理端骨架(HeroUI)
 │   ├── admin_base.html     # 管理端布局(侧栏 + 顶栏)
 │   ├── login.html          # 管理员登录
 │   ├── admin.html          # 管理端首页
 │   ├── links.html          # 链接汇总
 │   ├── mails.html          # 邮件管理:全部邮件搜索/删除
 │   ├── admin_message.html  # 邮件管理:邮件详情
+│   ├── stats.html          # 数据统计
+│   ├── _stat_tiles.html    # 统计卡片(首页/统计页共用)
 │   ├── link_detail.html    # 单条链接的访问日志
 │   ├── _icons.html         # 图标(Lucide)
 │   └── _toast.html         # 操作结果提示

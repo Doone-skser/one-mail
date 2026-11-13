@@ -1,67 +1,63 @@
 {% extends "admin_base.html" %}
 {% block title %}链接汇总{% endblock %}
 {% block content %}
+{% from "_icons.html" import icon %}
 {% include "_toast.html" %}
-<div class="card bg-base-100 shadow-sm overflow-hidden">
-  <div class="flex items-center gap-2 px-5 py-3.5 bg-base-200 border-b border-base-content/10">
+<section class="card card--default p-0 overflow-hidden">
+  <div class="flex items-center gap-2 px-5 pt-5 pb-3">
     <h1 class="text-lg font-semibold">链接汇总</h1>
-    <span class="text-sm text-base-content/50">{{ links | length }} 个</span>
+    <span class="chip chip--default"><span class="chip__label">{{ links | length }} 个</span></span>
   </div>
-  <div>
-    {% if links %}
-    <div class="row-list">
-      {% for l in links %}
-      <div class="flex flex-col lg:flex-row lg:items-center gap-x-4 gap-y-2.5 px-5 py-3.5
-                  hover:bg-base-content/[.025] transition-colors">
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-mono text-sm font-semibold break-all">{{ l.email }}</span>
-            <span class="badge badge-sm {{ l.status_cls }}">{{ l.status }}</span>
-          </div>
-          <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-base-content/60">
-            <span class="whitespace-nowrap">{{ l.remaining }}</span>
-            <span class="whitespace-nowrap">访问 {{ l.visits }} 次</span>
-            <span class="whitespace-nowrap">最近 {{ l.last_visit_str }}</span>
-            <span class="whitespace-nowrap">创建于 {{ l.created_str }}</span>
-          </div>
+  {% if links %}
+  <div class="row-list border-t border-separator">
+    {% for l in links %}
+    <div class="flex flex-col lg:flex-row lg:items-center gap-x-4 gap-y-2.5 px-5 py-3.5 hover:bg-surface-hover transition-colors">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono text-sm font-semibold break-all">{{ l.email }}</span>
+          <span class="chip {{ l.status_cls }}"><span class="chip__label">{{ l.status }}</span></span>
         </div>
-        <div class="flex gap-1.5 flex-wrap items-center lg:justify-end">
-          <div class="join">
-            <button class="btn btn-sm join-item" onclick="copyText('{{ l.url }}', this)">复制</button>
-            <a class="btn btn-sm join-item" href="{{ l.url }}" target="_blank"
-               rel="noopener noreferrer">打开 ↗</a>
-            <a class="btn btn-sm join-item" href="/admin/links/{{ l.id }}">日志</a>
-          </div>
-          <form method="post" action="/admin/links/{{ l.id }}/extend">
-            <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
-            <input type="hidden" name="next" value="/admin/links">
-            <select name="ttl" onchange="this.form.submit()" aria-label="延长有效期"
-                    class="select select-sm w-auto">
-              <option value="" selected disabled>延期…</option>
-              <option value="1">+1 天</option>
-              <option value="7">+7 天</option>
-              <option value="30">+30 天</option>
-              <option value="0">永久</option>
-            </select>
-          </form>
-          {% if not l.expired %}
-          <form method="post" action="/admin/links/{{ l.id }}/toggle">
-            <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
-            <input type="hidden" name="next" value="/admin/links">
-            {% if l.active %}
-            <button class="btn btn-sm btn-warning btn-soft" type="submit">撤销</button>
-            {% else %}
-            <button class="btn btn-sm btn-primary btn-soft" type="submit">启用</button>
-            {% endif %}
-          </form>
-          {% endif %}
+        <div class="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-xs text-muted">
+          <span class="whitespace-nowrap">{{ l.remaining }}</span>
+          <span class="whitespace-nowrap">访问 {{ l.visits }} 次</span>
+          <span class="whitespace-nowrap">最近 {{ l.last_visit_str }}</span>
+          <span class="whitespace-nowrap">创建于 {{ l.created_str }}</span>
         </div>
       </div>
-      {% endfor %}
+      <div class="flex gap-1.5 flex-wrap items-center lg:justify-end">
+        <button class="button button--sm button--secondary" type="button" onclick="copyText('{{ l.url }}', this)">{{ icon('copy') }}复制</button>
+        <a class="button button--sm button--tertiary" href="{{ l.url }}" target="_blank"
+           rel="noopener noreferrer">打开{{ icon('external') }}</a>
+        <a class="button button--sm button--tertiary" href="/admin/links/{{ l.id }}">日志</a>
+        <form method="post" action="/admin/links/{{ l.id }}/extend">
+          <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+          <input type="hidden" name="next" value="/admin/links">
+          <select name="ttl" onchange="this.form.submit()" aria-label="延长有效期"
+                  class="select py-1 text-sm">
+            <option value="" selected disabled>延期…</option>
+            <option value="1">+1 天</option>
+            <option value="7">+7 天</option>
+            <option value="30">+30 天</option>
+            <option value="0">永久</option>
+          </select>
+        </form>
+        {% if not l.expired %}
+        <form method="post" action="/admin/links/{{ l.id }}/toggle">
+          <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+          <input type="hidden" name="next" value="/admin/links">
+          {% if l.active %}
+          <button class="button button--sm button--warning-soft" type="submit">{{ icon('ban') }}撤销</button>
+          {% else %}
+          <button class="button button--sm button--success-soft" type="submit">{{ icon('check') }}启用</button>
+          {% endif %}
+        </form>
+        {% endif %}
+      </div>
     </div>
-    {% else %}
-    <p class="text-sm text-base-content/60 py-10 text-center">还没有生成过取件链接</p>
-    {% endif %}
+    {% endfor %}
   </div>
-</div>
+  {% else %}
+  <p class="text-sm text-muted py-12 text-center">还没有生成过取件链接</p>
+  {% endif %}
+</section>
 {% endblock %}

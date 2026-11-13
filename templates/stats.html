@@ -1,0 +1,123 @@
+{% extends "admin_base.html" %}
+{% block title %}数据统计{% endblock %}
+{% block content %}
+{% from "_icons.html" import icon %}
+
+{% include "_stat_tiles.html" %}
+
+<div class="grid gap-4 mt-4 lg:grid-cols-5">
+  {# 近 7 天收件:单序列柱状图,主色;今天的柱子加深,数值在悬停提示里 #}
+  <section class="card card--default p-6 lg:col-span-3">
+    <div class="flex items-baseline gap-2">
+      <h2 class="text-base font-semibold">近 7 天收件</h2>
+      <span class="text-sm text-muted">共 {{ ms.days | sum(attribute='count') }} 封</span>
+    </div>
+    <div class="relative mt-6">
+      {# 背景参考线:顶部标最大值 #}
+      <div class="pointer-events-none absolute inset-x-0 top-0 h-44 flex flex-col justify-between" aria-hidden="true">
+        <div class="border-t border-dashed border-separator text-[11px] text-muted leading-none"><span class="relative -top-2 bg-surface pr-1">{{ ms.day_max }}</span></div>
+        <div class="border-t border-dashed border-separator"></div>
+        <div class="border-t border-separator"></div>
+      </div>
+      <div class="bars relative" role="img" aria-label="近 7 天每日收件数柱状图,详细数据见下方表格">
+        {% for d in ms.days %}
+        {% set h = (d.count / ms.day_max * 100) if ms.day_max else 0 %}
+        <div class="bar{% if d.today %} bar--today{% endif %}" tabindex="0">
+          <span class="bar__tip" style="bottom: calc({{ h }}% + 6px)">{{ d.label }} · {{ d.count }} 封</span>
+          <span class="bar__fill" style="height: {{ h }}%"></span>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="grid gap-2 mt-2 text-center text-xs text-muted" style="grid-template-columns: repeat(7, minmax(0, 1fr))">
+        {% for d in ms.days %}
+        <div class="{{ 'font-medium text-foreground' if d.today }}">{{ '今天' if d.today else '周' ~ d.week }}<div class="tabular-nums opacity-70">{{ d.label }}</div></div>
+        {% endfor %}
+      </div>
+    </div>
+    <table class="sr-only">
+      <caption>近 7 天每日收件数</caption>
+      <tr><th>日期</th><th>邮件数</th></tr>
+      {% for d in ms.days %}<tr><td>{{ d.label }}</td><td>{{ d.count }}</td></tr>{% endfor %}
+    </table>
+  </section>
+
+  {# 邮件最多的邮箱 #}
+  <section class="card card--default p-6 lg:col-span-2">
+    <h2 class="text-base font-semibold">邮件最多的邮箱</h2>
+    {% if ms.top_boxes %}
+    <ul class="mt-2 flex flex-col gap-3.5">
+      {% for t in ms.top_boxes %}
+      <li>
+        <div class="flex items-baseline gap-2 text-sm">
+          <a class="min-w-0 truncate hover:underline underline-offset-4" href="/admin/mails?box={{ t.box | urlencode }}"
+             title="{{ t.box }}">{{ t.box }}</a>
+          {% if notes.get(t.box) %}<span class="min-w-0 truncate text-xs text-muted">{{ notes[t.box] }}</span>{% endif %}
+          <span class="ml-auto shrink-0 tabular-nums text-muted">{{ t.count }}</span>
+        </div>
+        <div class="meter mt-1.5"><span style="width: {{ (t.count / ms.top_max * 100) if ms.top_max else 0 }}%"></span></div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="py-10 text-center text-sm text-muted">暂无邮件</p>
+    {% endif %}
+  </section>
+</div>
+
+<div class="grid gap-4 mt-4 lg:grid-cols-2">
+  {# 今日验证码 #}
+  <section class="card card--default p-6" id="codes">
+    <div class="flex items-baseline gap-2">
+      <h2 class="text-base font-semibold">今日验证码</h2>
+      <span class="text-sm text-muted">{{ ms.today_codes | length }} 封</span>
+    </div>
+    {% if ms.today_codes %}
+    <ul class="row-list mt-1">
+      {% for c in ms.today_codes[:10] %}
+      <li class="flex items-center gap-3 py-3">
+        <span class="code-sm">{{ c.code }}</span>
+        <div class="min-w-0 flex-1">
+          <a class="block truncate text-sm hover:underline underline-offset-4"
+             href="{{ url_for('admin_mail_view', box=c.box, key=c.key, back='/admin/stats') }}"
+             title="{{ c.subject }}">{{ c.subject }}</a>
+          <div class="truncate text-xs text-muted">{{ c.box }} · {{ c.date[11:] }}</div>
+        </div>
+        <button class="button button--sm button--secondary copy-btn" type="button" data-code="{{ c.code }}">{{ icon('copy') }}复制</button>
+      </li>
+      {% endfor %}
+    </ul>
+    {% if ms.today_codes | length > 10 %}
+    <a class="button button--sm button--ghost mt-2 self-center text-muted" href="/admin/mails">查看全部邮件</a>
+    {% endif %}
+    {% else %}
+    <p class="py-10 text-center text-sm text-muted">今天还没有收到验证码</p>
+    {% endif %}
+  </section>
+
+  {# 最近活跃链接 #}
+  <section class="card card--default p-6">
+    <div class="flex items-baseline gap-2">
+      <h2 class="text-base font-semibold">最近活跃链接</h2>
+      <span class="text-sm text-muted">今日访问 {{ ls.today_visits }} 次</span>
+    </div>
+    {% if ls.recent %}
+    <ul class="row-list mt-1">
+      {% for l in ls.recent %}
+      <li class="flex items-center gap-3 py-3">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 min-w-0">
+            <a class="min-w-0 truncate text-sm font-medium hover:underline underline-offset-4" href="/admin/links/{{ l.id }}">{{ l.email }}</a>
+            <span class="chip chip--sm {{ l.status_cls }}"><span class="chip__label">{{ l.status }}</span></span>
+          </div>
+          <div class="text-xs text-muted tabular-nums">最近 {{ l.last_visit_str }} · 共 {{ l.visits }} 次</div>
+        </div>
+        <a class="button button--sm button--tertiary" href="/admin/links/{{ l.id }}">日志</a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="py-10 text-center text-sm text-muted">还没有链接被访问过</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

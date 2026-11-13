@@ -703,11 +703,11 @@ def link_view(row, host, now, visits=None, last_visit=None):
                            if last_visit else '—')
     d['expired'] = link_expired(row, now)
     if not row['active']:
-        d['status'], d['status_cls'] = '已撤销', 'badge-ghost'
+        d['status'], d['status_cls'] = '已撤销', 'chip--default'
     elif d['expired']:
-        d['status'], d['status_cls'] = '已过期', 'badge-warning badge-soft'
+        d['status'], d['status_cls'] = '已过期', 'chip--warning'
     else:
-        d['status'], d['status_cls'] = '有效', 'badge-success badge-soft'
+        d['status'], d['status_cls'] = '有效', 'chip--success'
     d['remaining'] = remaining_str(row, now)
     d['expires_str'] = (datetime.fromtimestamp(row['expires_at'], TZ).strftime('%Y-%m-%d %H:%M')
                         if row['expires_at'] is not None else '')
@@ -1169,7 +1169,8 @@ def admin_home():
                            flash_msg=flash_msg,
                            flash_err=flash_err, domains=domains,
                            revoked_count=revoked_count,
-                           links_by_email=links_by_email, notes=get_notes())
+                           links_by_email=links_by_email, notes=get_notes(),
+                           ms=mail_stats(all_boxes), ls=link_stats(request.host, 0))
 
 
 def _new_token(db):
@@ -1569,6 +1570,26 @@ def _mail_body_text(path):
         return ''
 
 
+def collect_mail_entries(boxes, only_box=None):
+    """汇总邮箱里的邮件:返回 (entries, box_counts)。entries 为
+    [(box, maildir, key, mtime, sub)],按时间倒序;only_box 只收集该邮箱的条目,
+    box_counts 始终统计全部邮箱。"""
+    entries = []
+    box_counts = {}
+    for b in boxes:
+        md = maildir_path(b)
+        if md is None:
+            box_counts[b] = 0
+            continue
+        lst = list_messages_sub(md)
+        box_counts[b] = len(lst)
+        if only_box and b != only_box:
+            continue
+        entries.extend((b, md, key, mt, sub) for key, mt, sub in lst)
+    entries.sort(key=lambda e: e[3], reverse=True)
+    return entries, box_counts
+
+
 @app.route('/admin/mails')
 def admin_mails():
     """跨所有邮箱搜索邮件。q 匹配主题/发件人/收件人/所属邮箱;body=1 时同时搜正文。"""
@@ -1592,19 +1613,7 @@ def admin_mails():
 
     t0 = time.time()
     # 汇总全部(或所选)邮箱的邮件,统一按时间倒序
-    entries = []
-    box_counts = {}
-    for b in boxes:
-        md = maildir_path(b)
-        if md is None:
-            box_counts[b] = 0
-            continue
-        lst = list_messages_sub(md)
-        box_counts[b] = len(lst)
-        if box and b != box:
-            continue
-        entries.extend((b, md, key, mt, sub) for key, mt, sub in lst)
-    entries.sort(key=lambda e: e[3], reverse=True)
+    entries, box_counts = collect_mail_entries(boxes, box or None)
     total_all = sum(box_counts.values())
 
     needle = q.lower()
@@ -1767,6 +1776,137 @@ def admin_mail_delete():
     else:
         session['flash_err'] = '没有删除任何邮件(未选中或邮件已不存在)'
     return redirect(_safe_mails_back(request.form.get('next', '')))
+
+
+# ---------- 统计 ----------
+
+STATS_DAYS = 7
+
+
+def _day_start(ts=None):
+    d = datetime.fromtimestamp(ts if ts is not None else time.time(), TZ)
+    return d.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def mail_stats(boxes):
+    """邮件统计:总数、今日新邮件、今日验证码、近 7 天每日收件数、邮件最多的邮箱。
+    收件时间按 Maildir 文件 mtime 计(即到达服务器的时间),不信任邮件头 Date。"""
+    entries, box_counts = collect_mail_entries(boxes)
+    today = _day_start()
+    today_ts = today.timestamp()
+    days = [today - timedelta(days=i) for i in range(STATS_DAYS - 1, -1, -1)]
+    first_ts = days[0].timestamp()
+    per_day = [0] * STATS_DAYS
+    today_mails = 0
+    unread = 0
+    today_codes = []
+    for b, md, key, mt, sub in entries:
+        meta = _mail_meta(md, key, sub, mt)
+        if meta and meta['unread']:
+            unread += 1
+        if mt < first_ts:
+            continue
+        idx = (_day_start(mt).date() - days[0].date()).days
+        if 0 <= idx < STATS_DAYS:
+            per_day[idx] += 1
+        if mt >= today_ts:
+            today_mails += 1
+            ent = _entry_for(md, key, mt)
+            if ent and ent['code']:
+                today_codes.append(dict(ent, box=b))
+    top_boxes = sorted(((n, b) for b, n in box_counts.items() if n),
+                       key=lambda x: (-x[0], x[1]))[:8]
+    return {
+        'boxes': len(boxes),
+        'mails': len(entries),
+        'unread': unread,
+        'today_mails': today_mails,
+        'today_codes': today_codes,
+        'days': [{'label': d.strftime('%m-%d'), 'week': '一二三四五六日'[d.weekday()],
+                  'count': per_day[i], 'today': i == STATS_DAYS - 1}
+                 for i, d in enumerate(days)],
+        'day_max': max(per_day) if any(per_day) else 0,
+        'top_boxes': [{'box': b, 'count': n} for n, b in top_boxes],
+        'top_max': top_boxes[0][0] if top_boxes else 0,
+        'box_counts': box_counts,
+    }
+
+
+def link_stats(host, limit=8):
+    """链接统计:有效链接数、今日访问次数、最近被访问的链接。"""
+    db = get_db()
+    now = time.time()
+    today_ts = _day_start().timestamp()
+    active = db.execute(
+        'SELECT COUNT(*) FROM links WHERE active = 1'
+        ' AND (expires_at IS NULL OR expires_at >= ?)', (now,)).fetchone()[0]
+    total = db.execute('SELECT COUNT(*) FROM links').fetchone()[0]
+    today_visits = db.execute(
+        'SELECT COUNT(*) FROM access_log WHERE ts >= ?', (today_ts,)).fetchone()[0]
+    rows = db.execute('''
+        SELECT l.*, COUNT(a.id) AS visits, MAX(a.ts) AS last_visit
+        FROM links l JOIN access_log a ON a.link_id = l.id
+        GROUP BY l.id ORDER BY last_visit DESC LIMIT ?
+    ''', (limit,)).fetchall()
+    recent = [link_view(r, host, now, r['visits'], r['last_visit']) for r in rows]
+    return {'active': active, 'total': total, 'today_visits': today_visits,
+            'recent': recent}
+
+
+@app.route('/admin/stats')
+def admin_stats():
+    r = admin_required()
+    if r:
+        return r
+    boxes = _admin_boxes()
+    if boxes is None:
+        session.clear()
+        return redirect(url_for('admin_login'))
+    return render_template('stats.html', ms=mail_stats(boxes),
+                           ls=link_stats(request.host), notes=get_notes())
+
+
+# ---------- 启动预读 ----------
+
+PREWARM_DAYS = 7   # 除邮件头外,最近这么多天的邮件还预先提取验证码(统计页要用)
+
+
+def prewarm_mail_cache():
+    """后台把全部邮件头读进缓存,首次打开邮件管理/统计页不用现读上千个文件。
+    直接遍历 MAILBOX_ROOT,不依赖管理员凭据;出错只影响缓存,不影响服务。"""
+    t0 = time.time()
+    n = 0
+    since = t0 - PREWARM_DAYS * 86400
+    try:
+        for domain in sorted(os.listdir(MAILBOX_ROOT)):
+            ddir = os.path.join(MAILBOX_ROOT, domain)
+            if not os.path.isdir(ddir):
+                continue
+            for local in sorted(os.listdir(ddir)):
+                md = maildir_path('%s@%s' % (local, domain))
+                if md is None:
+                    continue
+                for key, mt, sub in list_messages_sub(md):
+                    _mail_meta(md, key, sub, mt)
+                    if mt >= since:
+                        _entry_for(md, key, mt)
+                    n += 1
+    except Exception as e:  # noqa: BLE001 —— 预读失败不能拖垮 worker
+        app.logger.warning('prewarm failed: %s', e)
+        return
+    app.logger.warning('prewarm: %d mails cached in %d ms',
+                       n, int((time.time() - t0) * 1000))
+
+
+def start_prewarm():
+    # 本地开发/测试没有 MAILBOX_ROOT 时跳过;ONEMAIL_NO_PREWARM=1 可手动关闭
+    if os.environ.get('ONEMAIL_NO_PREWARM') == '1' or not os.path.isdir(MAILBOX_ROOT):
+        return
+    threading.Thread(target=prewarm_mail_cache, name='onemail-prewarm',
+                     daemon=True).start()
+
+
+start_prewarm()
 
 
 if __name__ == '__main__':

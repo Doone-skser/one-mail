@@ -2,51 +2,48 @@
 {% block container_class %}max-w-5xl{% endblock %}
 {% block title %}链接详情{% endblock %}
 {% block content %}
-<p><a class="link link-hover text-sm" href="/admin/links">← 返回链接汇总</a></p>
+{% from "_icons.html" import icon %}
+<a class="button button--sm button--ghost -ml-2 text-muted" href="/admin/links">{{ icon('arrow-left') }}返回链接汇总</a>
 
-<div class="card bg-base-100 shadow-sm mt-4">
-  <div class="card-body">
-    <div class="flex items-center gap-2 flex-wrap">
-      <h1 class="card-title text-xl">链接详情</h1>
-      <span class="badge {{ link.status_cls }}">{{ link.status }}</span>
-    </div>
-    <dl class="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-3 gap-y-2.5 items-baseline text-sm mt-2">
-      <dt class="text-base-content/60">绑定邮箱</dt>
-      <dd class="font-mono break-all">{{ link.email }}</dd>
-      <dt class="text-base-content/60">链接</dt>
-      <dd>
-        <div class="font-mono text-xs break-all bg-base-200 rounded-lg px-3 py-2">{{ link.url }}</div>
-        <div class="flex gap-1.5 mt-2">
-          <button class="btn btn-sm" onclick="copyText('{{ link.url }}', this)">复制</button>
-          <a class="btn btn-sm" href="{{ link.url }}" target="_blank"
-             rel="noopener noreferrer">打开 ↗</a>
-        </div>
-      </dd>
-      <dt class="text-base-content/60">有效期</dt><dd>{{ link.remaining }}</dd>
-      <dt class="text-base-content/60">创建时间</dt><dd class="tabular-nums">{{ link.created_str }}</dd>
-      <dt class="text-base-content/60">访问记录</dt><dd>{{ logs | length }} 条</dd>
-    </dl>
+<section class="card card--default mt-3 p-6">
+  <div class="flex items-center gap-2 flex-wrap">
+    <h1 class="text-xl font-semibold">链接详情</h1>
+    <span class="chip {{ link.status_cls }}"><span class="chip__label">{{ link.status }}</span></span>
   </div>
-</div>
+  <dl class="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-3 gap-y-3 items-baseline text-sm mt-3">
+    <dt class="text-muted">绑定邮箱</dt>
+    <dd class="font-mono break-all">{{ link.email }}</dd>
+    <dt class="text-muted">链接</dt>
+    <dd>
+      <div class="font-mono text-xs break-all bg-default rounded-xl px-3 py-2">{{ link.url }}</div>
+      <div class="flex gap-1.5 mt-2">
+        <button class="button button--sm button--secondary" type="button" onclick="copyText('{{ link.url }}', this)">{{ icon('copy') }}复制</button>
+        <a class="button button--sm button--tertiary" href="{{ link.url }}" target="_blank"
+           rel="noopener noreferrer">打开{{ icon('external') }}</a>
+      </div>
+    </dd>
+    <dt class="text-muted">有效期</dt><dd>{{ link.remaining }}</dd>
+    <dt class="text-muted">创建时间</dt><dd class="tabular-nums">{{ link.created_str }}</dd>
+    <dt class="text-muted">访问记录</dt><dd>{{ logs | length }} 条</dd>
+  </dl>
+</section>
 
-<div class="card bg-base-100 shadow-sm mt-4">
-  <div class="card-body">
-    <h2 class="card-title text-base">访问日志<span class="text-sm font-normal text-base-content/60">(最新在前)</span></h2>
-    {% if logs %}
-    <ul class="row-list">
-      {% for log in logs %}
-      <li class="py-2.5">
-        <div class="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
-          <span class="tabular-nums whitespace-nowrap text-base-content/60">{{ log.ts }}</span>
-          <span class="font-mono break-all">{{ log.ip }}</span>
-        </div>
-        <div class="text-xs text-base-content/50 wrap-anywhere mt-1">{{ log.ua }}</div>
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <p class="text-sm text-base-content/60 py-4 text-center">暂无访问记录</p>
-    {% endif %}
-  </div>
-</div>
+<section class="card card--default mt-4 p-6">
+  <h2 class="text-base font-semibold">访问日志<span class="text-sm font-normal text-muted">(最新在前)</span></h2>
+  {% if logs %}
+  <ul class="row-list mt-1">
+    {% for log in logs %}
+    <li class="py-3">
+      <div class="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
+        <span class="tabular-nums whitespace-nowrap text-muted">{{ log.ts }}</span>
+        <span class="font-mono break-all">{{ log.ip }}</span>
+      </div>
+      <div class="text-xs text-muted wrap-anywhere mt-1">{{ log.ua }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-sm text-muted py-6 text-center">暂无访问记录</p>
+  {% endif %}
+</section>
 {% endblock %}

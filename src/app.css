@@ -1,91 +1,209 @@
-/* OneMail 样式源文件 —— 用 npm run build 编译成 static/app.css。
-   运行时只需要编译产物,服务器上不需要 node。 */
-@import "tailwindcss";
+/* 管理端 + 登录页样式源文件 —— 和取件页一样基于 HeroUI v3 纯 CSS 包(@heroui/styles),
+   设计变量(配色/圆角/阴影/深色模式)两边完全一致。npm run build 编译成 static/app.css。
+   HeroUI 的弹窗/下拉/选择框依赖 React Aria,这里用原生 <dialog> / <details> / <select>
+   加 HeroUI 设计变量自己实现(见下方 components 层)。 */
+@layer theme, base, components, utilities;
+
+/* source(none) + 显式扫描模板目录:新增模板无需再登记;取件页模板里的类也会被扫到,
+   只多出极少量工具类,不影响 */
+@import "tailwindcss" source(none);
 @source "../templates";
-/* 徽章状态类名(badge-success / badge-warning / …)写在 app.py 里,一并扫描 */
+/* 状态徽章类名(chip--success / chip--warning / …)写在 app.py 里,一并扫描 */
 @source "../app.py";
 
-@plugin "daisyui" {
-  themes: light --default, dark --prefersdark;
-}
+@import "@heroui/styles/base" layer(base);
+@import "@heroui/styles/utilities";
+@import "@heroui/styles/variants";
+@import "@heroui/styles/themes/default" layer(theme);
 
-/* 拉开三层底色的明度差:页面(base-300) < 内嵌/悬停(base-200) < 卡片(base-100)。
-   内置主题三层只差 ~2%,卡片和页面几乎糊在一起。同名主题只覆盖这里写的变量。 */
-@plugin "daisyui/theme" {
-  name: "dark";
-  prefersdark: true;
-  /* 深海军蓝底 + 亮蓝主色 */
-  --color-base-100: oklch(23.5% 0.032 262);
-  --color-base-200: oklch(19.5% 0.03 263);
-  --color-base-300: oklch(15.5% 0.026 264);
-  --color-base-content: oklch(95% 0.012 255);
-  --color-primary: oklch(62% 0.19 258);
-  --color-primary-content: oklch(98.5% 0.005 255);
-}
-@plugin "daisyui/theme" {
-  name: "light";
-  default: true;
-  --color-base-200: oklch(97% 0.006 255);
-  --color-base-300: oklch(94% 0.01 255);
-  --color-primary: oklch(55% 0.2 262);
-  --color-primary-content: oklch(98.5% 0.005 255);
-}
+@import "@heroui/styles/components/button.css" layer(components);
+@import "@heroui/styles/components/card.css" layer(components);
+@import "@heroui/styles/components/chip.css" layer(components);
+@import "@heroui/styles/components/input.css" layer(components);
+@import "@heroui/styles/components/link.css" layer(components);
+@import "@heroui/styles/components/alert.css" layer(components);
+@import "@heroui/styles/components/separator.css" layer(components);
 
-/* 中文字体栈:daisyUI 默认字体对中文不友好 */
+/* 中文字体栈 */
 @theme {
   --font-sans: -apple-system, "PingFang SC", "Microsoft YaHei", "Helvetica Neue",
                ui-sans-serif, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
-/* 以下几条不放进 @layer:daisyUI 的组件样式在 daisyui.* 层里,排在 Tailwind 的
-   components 层之后,写在 components 里会被它盖掉;不分层的样式优先级最高。 */
-/* 统一的细线色:随主题自动深浅 */
-:root { --line: color-mix(in oklab, var(--color-base-content) 11%, transparent); }
-
-/* 卡片加描边,和页面底色分开 */
-.card { border: 1px solid var(--line); }
-
-/* 列表行之间的分隔线 */
-.row-list > * + * { border-top: 1px solid var(--line); }
-
-/* 无颜色修饰的普通按钮:透明底 + 细描边,避免和卡片底色混成一片 */
-.btn:not(.btn-primary, .btn-secondary, .btn-accent, .btn-neutral, .btn-info,
-         .btn-success, .btn-warning, .btn-error, .btn-ghost, .btn-link,
-         .btn-soft, .btn-outline) {
-  --btn-bg: transparent;
-  --btn-border: color-mix(in oklab, var(--color-base-content) 20%, transparent);
-  --btn-shadow: none;
-  &:hover { --btn-bg: color-mix(in oklab, var(--color-base-content) 8%, transparent); }
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
 }
 
 @layer components {
-  /* 管理端侧栏导航 */
+  /* ---------- 状态徽章:HeroUI chip 只改字色,这里补上同色系浅底 ---------- */
+  .chip--success { --chip-bg: var(--success-soft); }
+  .chip--warning { --chip-bg: var(--warning-soft); }
+  .chip--danger  { --chip-bg: var(--danger-soft); }
+  .chip--accent  { --chip-bg: var(--accent-soft); }
+
+  /* 危险操作按钮:浅红底 */
+  .button--danger-soft {
+    --button-bg: var(--danger-soft);
+    --button-bg-hover: var(--danger-soft-hover);
+    --button-bg-pressed: var(--danger-soft-hover);
+    --button-fg: var(--danger-soft-foreground);
+  }
+  .button--success-soft {
+    --button-bg: var(--success-soft);
+    --button-bg-hover: var(--success-soft-hover);
+    --button-bg-pressed: var(--success-soft-hover);
+    --button-fg: var(--success-soft-foreground);
+  }
+  .button--warning-soft {
+    --button-bg: var(--warning-soft);
+    --button-bg-hover: var(--warning-soft-hover);
+    --button-bg-pressed: var(--warning-soft-hover);
+    --button-fg: var(--warning-soft-foreground);
+  }
+  .button--icon-only { @apply px-0 aspect-square; }
+
+  /* ---------- 原生 select:外观对齐 HeroUI 输入框 ---------- */
+  .select {
+    @apply rounded-field border bg-field py-2 pl-3 pr-9 text-base text-field-foreground shadow-field
+           outline-none sm:text-sm;
+    border-width: var(--border-width-field);
+    border-color: var(--field-border);
+    appearance: none;
+    cursor: var(--cursor-interactive);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    background-size: 1rem;
+    transition: background-color 150ms ease, border-color 150ms ease;
+    &:hover { @apply bg-field-hover; border-color: var(--field-border-hover); }
+    &:focus { @apply status-focused-field; border-color: var(--field-border-focus); }
+  }
+  /* 带图标的搜索框:外层仿输入框,里面的 input 透明 */
+  .search {
+    @apply flex items-center gap-2 rounded-field border bg-field px-3 text-field-foreground shadow-field;
+    border-width: var(--border-width-field);
+    border-color: var(--field-border);
+    transition: border-color 150ms ease, background-color 150ms ease;
+    &:hover { @apply bg-field-hover; border-color: var(--field-border-hover); }
+    &:focus-within { @apply status-focused-field; border-color: var(--field-border-focus); }
+    & input {
+      @apply min-w-0 flex-1 bg-transparent py-2 text-base outline-none placeholder:text-field-placeholder sm:text-sm;
+    }
+    & svg { @apply size-4 shrink-0 text-muted; }
+  }
+
+  /* 卡片/弹窗里的输入控件:HeroUI 深色主题下输入框底色和卡片相同会"隐身",
+     这里改用 secondary 风格(灰色实底、无描边),和 HeroUI 在 surface 上的推荐用法一致 */
+  :is(.card, .dlg) :is(.input, .select, .search) {
+    background-color: var(--default);
+    border-color: transparent;
+    box-shadow: none;
+    &:hover { background-color: var(--default-hover); border-color: transparent; }
+  }
+  :is(.card, .dlg) :is(.input, .select):focus,
+  :is(.card, .dlg) .search:focus-within { background-color: var(--default); }
+
+  /* 原生复选框:主色勾选 */
+  .check {
+    @apply size-4 shrink-0 rounded;
+    accent-color: var(--accent);
+    cursor: var(--cursor-interactive);
+  }
+  .check-label {
+    @apply inline-flex items-center gap-2 text-sm text-muted select-none;
+    cursor: var(--cursor-interactive);
+    &:hover { @apply text-foreground; }
+  }
+
+  /* 表单字段标题 */
+  .field-label { @apply mb-1.5 block text-sm font-medium text-foreground; }
+  .field-hint  { @apply mt-1.5 min-h-4 text-xs text-muted; }
+
+  /* ---------- 弹窗:原生 <dialog>,showModal() 自带焦点管理和 Esc 关闭 ---------- */
+  .dlg {
+    @apply m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl bg-overlay p-6 text-overlay-foreground shadow-overlay;
+    border: none;
+    &::backdrop { background: var(--backdrop); backdrop-filter: blur(6px); }
+    &[open] { animation: dlg-in 180ms var(--ease-out-quad, ease-out); }
+  }
+  .dlg__title { @apply pr-8 text-lg font-semibold; }
+  .dlg__close { @apply absolute top-4 right-4; }
+  .dlg__actions { @apply mt-6 flex flex-wrap justify-end gap-2; }
+  @keyframes dlg-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* ---------- 下拉菜单:<details class="dd"> ---------- */
+  .dd { @apply relative; }
+  .dd > summary { list-style: none; }
+  .dd > summary::-webkit-details-marker { display: none; }
+  .dd__menu {
+    @apply absolute right-0 z-40 mt-1.5 flex w-44 flex-col rounded-2xl bg-overlay p-1.5 text-overlay-foreground shadow-overlay;
+  }
+  .dd__title { @apply px-2.5 pt-1 pb-1.5 text-xs font-medium text-muted; }
+  .dd__item {
+    @apply flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm;
+    cursor: var(--cursor-interactive);
+    &:hover { @apply bg-default; }
+  }
+
+  /* ---------- 提示条 ---------- */
+  .toast-stack {
+    @apply fixed top-4 right-4 left-4 z-50 flex flex-col items-end gap-2 sm:left-auto;
+  }
+  .toast-item {
+    @apply flex max-w-sm items-center gap-3 rounded-2xl bg-overlay py-3 pr-2 pl-4 text-sm text-overlay-foreground shadow-overlay;
+    transition: opacity 300ms ease, transform 300ms ease;
+  }
+
+  /* ---------- 侧栏导航 ---------- */
   .sidenav {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-base-content/70
-           transition-colors hover:bg-base-content/5 hover:text-base-content;
+    @apply flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-muted transition-colors;
+    &:hover { @apply bg-default text-foreground; }
+    & svg { @apply size-[18px]; }
   }
-  .sidenav-active {
-    @apply bg-primary text-primary-content shadow-md shadow-primary/20
-           hover:bg-primary hover:text-primary-content;
+  .sidenav-active, .sidenav-active:hover { @apply bg-surface text-foreground shadow-surface; }
+  .sidenav-active svg { @apply text-accent; }
+
+  /* 统计卡片 */
+  .stat { @apply flex flex-col gap-1 rounded-3xl bg-surface p-5 shadow-surface; }
+  .stat__label { @apply flex items-center gap-1.5 text-sm text-muted; }
+  .stat__value { @apply text-3xl font-semibold tracking-tight tabular-nums; }
+  .stat__sub { @apply text-xs text-muted; }
+
+  /* 柱状图:单序列,主色细柱,4px 圆角顶,悬停显示数值 */
+  .bars { @apply grid h-44 items-end gap-2; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .bar { @apply relative flex h-full flex-col items-center justify-end; }
+  .bar__fill {
+    @apply w-full max-w-10 rounded-t-[4px] bg-accent/70 transition-colors;
+    min-height: 2px;
   }
-  /* 分段切换(取件页 验证码/全部邮件):选中项实心主色,未选中项灰字 + 悬停底色 */
-  .seg {
-    @apply inline-flex w-fit gap-1 p-1 rounded-xl bg-base-300 border border-base-content/10;
+  .bar:hover .bar__fill, .bar--today .bar__fill { @apply bg-accent; }
+  .bar__tip {
+    @apply pointer-events-none absolute z-10 rounded-lg bg-overlay px-2 py-1
+           text-xs whitespace-nowrap text-overlay-foreground opacity-0 shadow-overlay transition-opacity;
   }
-  .seg-item {
-    @apply inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium
-           text-base-content/60 transition-colors hover:text-base-content hover:bg-base-content/5;
-  }
-  .seg-active {
-    @apply bg-primary text-primary-content shadow-sm shadow-primary/30
-           hover:bg-primary hover:text-primary-content;
+  .bar:hover .bar__tip, .bar:focus-visible .bar__tip { @apply opacity-100; }
+  .meter { @apply h-1.5 w-full overflow-hidden rounded-full bg-default; }
+  .meter > span { @apply block h-full rounded-full bg-accent; }
+
+  /* 列表行分隔线 */
+  .row-list > * + * { border-top: 1px solid var(--separator); }
+
+  /* 加载中小圈 */
+  .spin {
+    @apply inline-block size-3.5 rounded-full border-2 border-current border-r-transparent;
+    animation: spin 0.7s linear infinite;
   }
 
-  /* 按钮/徽章文字永不折行,也不被 flex/表格挤窄(否则会变成一字一行) */
-  .btn, .badge { white-space: nowrap; flex-shrink: 0; }
-
-  /* 验证码大字:等宽 + 等宽数字,拉开字距方便抄写 */
+  /* 验证码大字 */
   .code-big {
     font-family: var(--font-mono);
     font-size: 1.875rem;
@@ -94,25 +212,19 @@
     line-height: 1.2;
     font-variant-numeric: tabular-nums;
   }
-  .code-hero-big {
-    display: block;
-    font-size: 2.75rem;
-    letter-spacing: 0.14em;
-  }
-  @media (width < 40rem) {
-    .code-big { font-size: 1.625rem; }
-    .code-hero-big { font-size: 2.125rem; }
+  .code-sm {
+    @apply rounded-lg bg-accent-soft px-2 py-0.5 font-mono text-sm font-semibold tracking-widest text-accent-soft-foreground tabular-nums;
   }
 
-  /* 邮件正文 iframe:高度由 message.html 的脚本量完内容后设置 */
+  /* 邮件正文 iframe(HTML 邮件按白底设计,深色模式也保持白底) */
   .htmlmail {
     width: 100%;
     min-height: 70vh;
     border: none;
     display: block;
+    background: #fff;
+    border-radius: var(--radius-xl);
   }
-
-  /* 纯文本正文:保留换行,用正文字体而不是等宽 */
   .mail-text {
     white-space: pre-wrap;
     word-break: break-word;
@@ -121,12 +233,12 @@
     line-height: 1.7;
   }
 
-  /* 「自动更新中」的呼吸小绿点 */
+  /* 呼吸小绿点 */
   .live-dot {
     width: 0.5rem;
     height: 0.5rem;
     border-radius: 50%;
-    background: var(--color-success);
+    background: var(--success);
     flex: none;
   }
   @media (prefers-reduced-motion: no-preference) {
@@ -135,12 +247,5 @@
   @keyframes live-pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.45; transform: scale(0.75); }
-  }
-}
-
-@layer utilities {
-  /* 窄屏隐藏次要表格列 */
-  @media (width < 40rem) {
-    .hide-sm { display: none; }
   }
 }

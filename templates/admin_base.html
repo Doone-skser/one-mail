@@ -2,51 +2,55 @@
 {% extends "base.html" %}
 {% block body %}
 {% from "_icons.html" import icon %}
-{% set on_links = request.path.startswith('/admin/links') %}
-{% set on_mails = request.path.startswith('/admin/mails') %}
-{% set on_home = not on_links and not on_mails %}
+{% set p = request.path %}
+{% set nav = [
+  ('/admin/', 'list', '邮箱列表', p == '/admin/' or p.startswith('/admin/mailboxes')),
+  ('/admin/mails', 'mail', '邮件管理', p.startswith('/admin/mails')),
+  ('/admin/links', 'link', '链接汇总', p.startswith('/admin/links')),
+  ('/admin/stats', 'chart', '数据统计', p.startswith('/admin/stats')),
+] %}
 <div class="min-h-screen lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
-  <aside class="hidden lg:flex flex-col sticky top-0 h-screen bg-base-200 border-r border-base-content/10 px-3 py-4">
-    <a class="flex items-center gap-2.5 px-2 mb-7" href="/admin/">
-      <img class="size-10" src="{{ url_for('static', filename='logo.png') }}" alt="">
-      <span class="text-lg font-bold tracking-tight">One<span class="text-primary">Mail</span> 取件</span>
+  <aside class="hidden lg:flex flex-col sticky top-0 h-screen border-r border-border bg-background-secondary px-3 py-5">
+    <a class="flex items-center gap-2.5 px-2 mb-8" href="/admin/">
+      <img class="size-9" src="{{ url_for('static', filename='logo.png') }}" alt="">
+      <span class="text-lg font-semibold tracking-tight">One<span class="text-accent">Mail</span> 取件</span>
     </a>
     <nav class="flex flex-col gap-1" aria-label="管理导航">
-      <a class="sidenav{% if on_home %} sidenav-active{% endif %}" href="/admin/"
-         {% if on_home %}aria-current="page"{% endif %}>{{ icon('list') }}邮箱列表</a>
-      <a class="sidenav{% if on_mails %} sidenav-active{% endif %}" href="/admin/mails"
-         {% if on_mails %}aria-current="page"{% endif %}>{{ icon('mail') }}邮件管理</a>
-      <a class="sidenav{% if on_links %} sidenav-active{% endif %}" href="/admin/links"
-         {% if on_links %}aria-current="page"{% endif %}>{{ icon('chart') }}链接汇总</a>
+      {% for href, ic, label, on in nav %}
+      <a class="sidenav{% if on %} sidenav-active{% endif %}" href="{{ href }}"
+         {% if on %}aria-current="page"{% endif %}>{{ icon(ic) }}{{ label }}</a>
+      {% endfor %}
     </nav>
-    <div class="mt-auto border-t border-base-content/10 pt-4 px-2 text-xs">
-      <div class="flex items-center gap-2 text-base-content/70"><span class="live-dot"></span>服务运行中</div>
-      <div class="admin-clock tabular-nums text-base-content/50 mt-1.5"></div>
+    <div class="mt-auto px-2 text-xs">
+      <div class="flex items-center gap-2 text-muted"><span class="live-dot"></span>服务运行中</div>
+      <div class="admin-clock tabular-nums text-muted mt-1.5"></div>
+      <div class="mt-3 truncate text-muted" title="{{ session.get('admin', '') }}">{{ session.get('admin', '') }}</div>
     </div>
   </aside>
 
   <div class="min-w-0 flex min-h-screen flex-col">
     <header class="sticky top-0 z-30 flex items-center justify-between gap-2 h-14 px-4 lg:px-8
-                   bg-base-100/85 backdrop-blur border-b border-base-content/10">
-      <a class="flex items-center gap-2 lg:invisible" href="/admin/">
-        <img class="size-8" src="{{ url_for('static', filename='logo.png') }}" alt="">
-        <span class="font-bold tracking-tight max-sm:hidden">One<span class="text-primary">Mail</span> 取件</span>
+                   border-b border-border bg-background/80 backdrop-blur-md">
+      <a class="flex items-center gap-2 lg:hidden" href="/admin/">
+        <img class="size-7" src="{{ url_for('static', filename='logo.png') }}" alt="">
+        <span class="font-semibold tracking-tight max-sm:hidden">One<span class="text-accent">Mail</span></span>
       </a>
-      <nav class="flex items-center gap-1 text-sm">
-        <a class="btn btn-ghost btn-sm lg:hidden{% if on_home %} text-primary{% endif %}" href="/admin/">
-          {{ icon('list') }}<span class="max-sm:hidden">邮箱列表</span></a>
-        <a class="btn btn-ghost btn-sm lg:hidden{% if on_mails %} text-primary{% endif %}" href="/admin/mails">
-          {{ icon('mail') }}<span class="max-sm:hidden">邮件管理</span></a>
-        <a class="btn btn-ghost btn-sm lg:hidden{% if on_links %} text-primary{% endif %}" href="/admin/links">
-          {{ icon('chart') }}<span class="max-sm:hidden">链接汇总</span></a>
-        <a class="btn btn-ghost btn-sm" href="/admin/logout">{{ icon('logout') }}退出</a>
+      <span class="max-lg:hidden text-sm font-medium text-muted">{{ self.title() }}</span>
+      <nav class="flex items-center gap-0.5 text-sm">
+        {% for href, ic, label, on in nav %}
+        <a class="button button--sm lg:hidden {{ 'button--secondary' if on else 'button--ghost text-muted' }}"
+           href="{{ href }}" aria-label="{{ label }}" {% if on %}aria-current="page"{% endif %}>
+          {{ icon(ic) }}<span class="max-md:hidden">{{ label }}</span></a>
+        {% endfor %}
+        <a class="button button--sm button--ghost text-muted" href="/admin/logout" aria-label="退出">
+          {{ icon('logout') }}<span class="max-sm:hidden">退出</span></a>
       </nav>
     </header>
-    <main id="admin-main" class="mx-auto w-full flex-1 {% block container_class %}max-w-7xl{% endblock %} px-4 lg:px-8 pt-6 pb-12">
+    <main id="admin-main" class="mx-auto w-full flex-1 {% block container_class %}max-w-6xl{% endblock %} px-4 lg:px-8 pt-6 pb-12">
       {% block content %}{% endblock %}
     </main>
-    <footer class="px-4 pb-6 text-center text-xs text-base-content/50">
-      <a class="link link-hover" href="https://github.com/Doone-skser/one-mail"
+    <footer class="px-4 pb-6 text-center text-xs">
+      <a class="link text-xs text-muted" href="https://github.com/Doone-skser/one-mail"
          target="_blank" rel="noopener noreferrer">GitHub · Doone-skser/one-mail</a>
     </footer>
   </div>

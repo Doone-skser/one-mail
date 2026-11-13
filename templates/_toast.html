@@ -1,16 +1,19 @@
-{# 操作结果提示(admin / links 共用);自动消失逻辑在 base.html #}
+{# 操作结果提示(管理端各页共用);自动消失逻辑在 base.html #}
+{% from "_icons.html" import icon %}
 {% if flash_msg or flash_err %}
-<div class="toast toast-top toast-end z-50">
+<div class="toast-stack">
   {% if flash_msg %}
-  <div role="alert" class="toast-item alert alert-success alert-soft transition-opacity duration-300">
-    <span class="break-all">{{ flash_msg }}</span>
-    <button class="toast-close btn btn-ghost btn-xs" type="button" aria-label="关闭">✕</button>
+  <div role="status" class="toast-item">
+    <span class="text-success">{{ icon('check') }}</span>
+    <span class="flex-1 break-all">{{ flash_msg }}</span>
+    <button class="toast-close button button--sm button--ghost button--icon-only" type="button" aria-label="关闭">✕</button>
   </div>
   {% endif %}
   {% if flash_err %}
-  <div role="alert" class="toast-item alert alert-warning alert-soft transition-opacity duration-300">
-    <span class="break-all">{{ flash_err }}</span>
-    <button class="toast-close btn btn-ghost btn-xs" type="button" aria-label="关闭">✕</button>
+  <div role="alert" class="toast-item">
+    <span class="text-warning">{{ icon('ban') }}</span>
+    <span class="flex-1 break-all">{{ flash_err }}</span>
+    <button class="toast-close button button--sm button--ghost button--icon-only" type="button" aria-label="关闭">✕</button>
   </div>
   {% endif %}
 </div>

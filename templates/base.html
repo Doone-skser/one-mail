@@ -1,46 +1,51 @@
+{# 管理端骨架(登录页 + admin_base.html):HeroUI 样式(static/app.css),与取件页同一套设计变量 #}
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}OneMail{% endblock %}</title>
+<meta name="color-scheme" content="light dark">
+<title>{% block title %}OneMail{% endblock %} · OneMail</title>
+<script>
+// HeroUI 深色主题靠 <html class="dark"> 切换:跟随系统,放在样式表之前避免闪白
+(function () {
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  function apply() { document.documentElement.classList.toggle('dark', mq.matches); }
+  apply();
+  if (mq.addEventListener) mq.addEventListener('change', apply);
+})();
+</script>
 <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
 </head>
-<body class="bg-base-300 min-h-screen">
+<body class="min-h-screen">
 {% block body %}
-<div class="navbar bg-base-100 border-b border-base-content/10 min-h-0 py-2">
-  <div class="mx-auto w-full max-w-5xl px-4 flex items-center justify-between">
-    <a class="flex items-center gap-2 font-bold tracking-tight" href="/">
+<header class="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur-md">
+  <div class="mx-auto flex h-14 w-full max-w-5xl items-center px-4">
+    <a class="flex items-center gap-2 font-semibold tracking-tight" href="/">
       <img class="size-7" src="{{ url_for('static', filename='logo.png') }}" alt="">
-      <span>One<span class="text-primary">Mail</span> 取件</span></a>
-    <div class="flex items-center gap-1 text-sm">{% block nav %}{% endblock %}</div>
+      <span>One<span class="text-accent">Mail</span> 取件</span></a>
   </div>
-</div>
-<div class="mx-auto w-full {% block container_class %}max-w-3xl{% endblock %} px-4 pt-6 pb-12">
+</header>
+<main class="mx-auto w-full {% block container_class %}max-w-3xl{% endblock %} px-4 pt-6 pb-12">
   {% block content %}{% endblock %}
-</div>
-<footer class="px-4 pb-6 text-center text-xs text-base-content/50">
-  <a class="link link-hover" href="https://github.com/Doone-skser/one-mail"
+</main>
+<footer class="px-4 pb-6 text-center text-xs text-muted">
+  <a class="link text-xs text-muted" href="https://github.com/Doone-skser/one-mail"
      target="_blank" rel="noopener noreferrer">GitHub · Doone-skser/one-mail</a>
 </footer>
 {% endblock %}
 <script>
+// 复制(.copy-btn 的 data-code,或 onclick="copyText(...)"):按钮上显示"已复制 ✓"
 function copyText(t, btn) {
   function feedback() {
     if (!btn) { alert('已复制'); return; }
-    btn.classList.add('btn-success');
-    // 存 innerHTML 而不是 textContent:按钮里可能带图标
     if (btn.dataset.copying) return;
     btn.dataset.copying = '1';
-    var old = btn.innerHTML;
+    var old = btn.innerHTML;  // 存 innerHTML:按钮里可能带图标
     btn.textContent = '已复制 ✓';
-    setTimeout(function () {
-      btn.classList.remove('btn-success');
-      btn.innerHTML = old;
-      delete btn.dataset.copying;
-    }, 1500);
+    setTimeout(function () { btn.innerHTML = old; delete btn.dataset.copying; }, 1500);
   }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(t).then(feedback, function () { fallbackCopy(t); feedback(); });
@@ -55,39 +60,46 @@ function fallbackCopy(t) {
   try { document.execCommand('copy'); } catch (e) {}
   document.body.removeChild(i);
 }
-// 验证码复制按钮:带"已复制"反馈
 document.addEventListener('click', function (e) {
   var btn = e.target.closest('.copy-btn');
-  if (!btn) return;
-  copyText(btn.getAttribute('data-code'), btn);
+  if (btn) copyText(btn.getAttribute('data-code'), btn);
 });
-// toast:5s 自动消失,也可点 ✕ 立即关闭(页面内局部刷新后会再次调用)
+// 提示条:5s 自动消失,也可点 ✕ 立即关闭(页面局部刷新后会再次调用)
 function initToasts() {
-document.querySelectorAll('.toast-item:not([data-bound])').forEach(function (t) {
-  t.setAttribute('data-bound', '1');
-  var timer = setTimeout(dismiss, 5000);
-  function dismiss() {
-    clearTimeout(timer);
-    t.classList.add('opacity-0');
-    setTimeout(function () { t.remove(); }, 350);
-  }
-  var x = t.querySelector('.toast-close');
-  if (x) x.addEventListener('click', dismiss);
-});
+  document.querySelectorAll('.toast-item:not([data-bound])').forEach(function (t) {
+    t.setAttribute('data-bound', '1');
+    var timer = setTimeout(dismiss, 5000);
+    function dismiss() {
+      clearTimeout(timer);
+      t.style.opacity = '0';
+      t.style.transform = 'translateY(-6px)';
+      setTimeout(function () { t.remove(); }, 320);
+    }
+    var x = t.querySelector('.toast-close');
+    if (x) x.addEventListener('click', dismiss);
+  });
+}
+// 弹窗:服务端渲染时带 data-autoopen 的直接打开(如新链接/新邮箱结果)
+function initDialogs() {
+  document.querySelectorAll('dialog[data-autoopen]:not([open])').forEach(function (d) {
+    d.removeAttribute('data-autoopen');
+    if (d.showModal) d.showModal(); else d.setAttribute('open', '');
+  });
 }
 initToasts();
-// details 下拉菜单:点外面 / 选完后收起
+initDialogs();
 document.addEventListener('click', function (e) {
-  document.querySelectorAll('details.dropdown[open]').forEach(function (d) {
+  // 弹窗:点 ✕ / 关闭按钮 / 遮罩空白处关闭
+  var x = e.target.closest('.dlg-x');
+  if (x) { x.closest('dialog').close(); return; }
+  if (e.target.tagName === 'DIALOG' && e.target.classList.contains('dlg')) {
+    var r = e.target.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) e.target.close();
+  }
+  // 下拉菜单:点外面收起
+  document.querySelectorAll('details.dd[open]').forEach(function (d) {
     if (!d.contains(e.target)) d.removeAttribute('open');
   });
-});
-// 弹窗:点 ✕ / 关闭按钮 / 遮罩空白处关闭(daisyUI 用 modal-open 控制显隐)
-document.addEventListener('click', function (e) {
-  var x = e.target.closest('.modal-x');
-  var mask = e.target.classList && e.target.classList.contains('modal') ? e.target : null;
-  var m = x ? x.closest('.modal') : mask;
-  if (m) m.classList.remove('modal-open');
 });
 </script>
 </body>

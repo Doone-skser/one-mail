@@ -1,0 +1,24 @@
+{# 统计卡片(邮箱列表首页 / 数据统计页共用),需要 ms(mail_stats)和 ls(link_stats) #}
+{% from "_icons.html" import icon %}
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+  <a class="stat hover:bg-surface-hover transition-colors" href="/admin/mails">
+    <span class="stat__label">{{ icon('inbox') }}邮件总数</span>
+    <span class="stat__value">{{ ms.mails }}</span>
+    <span class="stat__sub">{{ ms.boxes }} 个邮箱 · {{ ms.unread }} 封未读</span>
+  </a>
+  <a class="stat hover:bg-surface-hover transition-colors" href="/admin/stats">
+    <span class="stat__label">{{ icon('mail') }}今日新邮件</span>
+    <span class="stat__value">{{ ms.today_mails }}</span>
+    <span class="stat__sub">近 7 天 {{ ms.days | sum(attribute='count') }} 封</span>
+  </a>
+  <a class="stat hover:bg-surface-hover transition-colors" href="/admin/stats#codes">
+    <span class="stat__label">{{ icon('key') }}今日验证码</span>
+    <span class="stat__value">{{ ms.today_codes | length }}</span>
+    <span class="stat__sub">识别出验证码的邮件</span>
+  </a>
+  <a class="stat hover:bg-surface-hover transition-colors" href="/admin/links">
+    <span class="stat__label">{{ icon('link') }}有效链接</span>
+    <span class="stat__value">{{ ls.active }}</span>
+    <span class="stat__sub">共 {{ ls.total }} 条 · 今日访问 {{ ls.today_visits }} 次</span>
+  </a>
+</div>

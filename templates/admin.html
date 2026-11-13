@@ -1,252 +1,238 @@
 {% extends "admin_base.html" %}
-{% block title %}邮箱管理{% endblock %}
+{% block title %}邮箱列表{% endblock %}
 {% block content %}
 {% from "_icons.html" import icon %}
 {% include "_toast.html" %}
 
 {% if new_url %}
-<div class="modal modal-open" role="dialog">
-  <div class="modal-box">
-    <h2 class="font-semibold text-lg">新的取件链接</h2>
-    <button class="modal-x btn btn-ghost btn-sm btn-circle absolute right-3 top-3"
-            type="button" aria-label="关闭">✕</button>
-    <p class="font-mono text-sm break-all bg-base-200 rounded-lg p-3 mt-3">{{ new_url }}</p>
-    <div class="modal-action">
-      <button class="btn btn-primary copy-btn" data-code="{{ new_url }}">{{ icon('copy', 'size-4') }}复制链接</button>
-      <a class="btn" href="{{ new_url }}" target="_blank" rel="noopener noreferrer">新页面打开{{ icon('external', 'size-4') }}</a>
-      <button class="modal-x btn" type="button">关闭</button>
-    </div>
+<dialog class="dlg" data-autoopen aria-labelledby="new-url-title">
+  <h2 class="dlg__title" id="new-url-title">新的取件链接</h2>
+  <button class="dlg-x dlg__close button button--sm button--ghost button--icon-only" type="button" aria-label="关闭">{{ icon('x') }}</button>
+  <p class="font-mono text-sm break-all bg-default rounded-2xl p-3 mt-4">{{ new_url }}</p>
+  <div class="dlg__actions">
+    <a class="button button--tertiary" href="{{ new_url }}" target="_blank" rel="noopener noreferrer">新页面打开{{ icon('external') }}</a>
+    <button class="button button--primary copy-btn" type="button" data-code="{{ new_url }}" autofocus>{{ icon('copy') }}复制链接</button>
   </div>
-</div>
+</dialog>
 {% endif %}
 
 {% if new_mailbox %}
-<div class="modal modal-open" role="dialog">
-  <div class="modal-box">
-    <h2 class="font-semibold text-lg">邮箱创建成功</h2>
-    <button class="modal-x btn btn-ghost btn-sm btn-circle absolute right-3 top-3"
-            type="button" aria-label="关闭">✕</button>
-    <dl class="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-2 gap-y-3 items-center text-sm mt-4">
-      <dt class="text-base-content/60">邮箱</dt>
-      <dd class="flex items-center gap-2">
-        <span class="font-mono break-all flex-1">{{ new_mailbox.email }}</span>
-        <button class="btn btn-xs copy-btn" data-code="{{ new_mailbox.email }}">复制</button>
-      </dd>
-      <dt class="text-base-content/60">密码</dt>
-      <dd class="flex items-center gap-2">
-        <code class="font-mono break-all flex-1">{{ new_mailbox.password }}</code>
-        <button class="btn btn-xs copy-btn" data-code="{{ new_mailbox.password }}">复制</button>
-      </dd>
-      {% if new_mailbox.url %}
-      <dt class="text-base-content/60 self-start pt-2">取件链接</dt>
-      <dd>
-        <div class="font-mono text-xs break-all bg-base-200 rounded-lg px-3 py-2">{{ new_mailbox.url }}</div>
-        <div class="flex items-center flex-wrap gap-2 mt-2">
-          <button class="btn btn-sm btn-primary copy-btn" data-code="{{ new_mailbox.url }}">{{ icon('copy', 'size-3.5') }}复制链接</button>
-          <a class="btn btn-sm" href="{{ new_mailbox.url }}" target="_blank"
-             rel="noopener noreferrer">新页面打开{{ icon('external', 'size-3.5') }}</a>
-          <span class="text-xs text-base-content/50 ml-auto whitespace-nowrap">
-            {{ '永久有效' if new_mailbox.ttl == '0' else '有效期 %s 天' % new_mailbox.ttl }}</span>
-        </div>
-      </dd>
-      {% endif %}
-    </dl>
-    {% if not new_mailbox.ready %}
-    <div role="alert" class="alert alert-warning alert-soft text-sm mt-3">
-      Maildir 预建失败,首次收信或登录后取件链接才可用。
-    </div>
+<dialog class="dlg" data-autoopen aria-labelledby="new-box-title">
+  <h2 class="dlg__title" id="new-box-title">邮箱创建成功</h2>
+  <button class="dlg-x dlg__close button button--sm button--ghost button--icon-only" type="button" aria-label="关闭">{{ icon('x') }}</button>
+  <dl class="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-2 gap-y-3 items-center text-sm mt-5">
+    <dt class="text-muted">邮箱</dt>
+    <dd class="flex items-center gap-2">
+      <span class="font-mono break-all flex-1">{{ new_mailbox.email }}</span>
+      <button class="button button--sm button--tertiary copy-btn" type="button" data-code="{{ new_mailbox.email }}">复制</button>
+    </dd>
+    <dt class="text-muted">密码</dt>
+    <dd class="flex items-center gap-2">
+      <code class="font-mono break-all flex-1">{{ new_mailbox.password }}</code>
+      <button class="button button--sm button--tertiary copy-btn" type="button" data-code="{{ new_mailbox.password }}">复制</button>
+    </dd>
+    {% if new_mailbox.url %}
+    <dt class="text-muted self-start pt-2">取件链接</dt>
+    <dd>
+      <div class="font-mono text-xs break-all bg-default rounded-xl px-3 py-2">{{ new_mailbox.url }}</div>
+      <div class="flex items-center flex-wrap gap-2 mt-2">
+        <button class="button button--sm button--primary copy-btn" type="button" data-code="{{ new_mailbox.url }}">{{ icon('copy') }}复制链接</button>
+        <a class="button button--sm button--tertiary" href="{{ new_mailbox.url }}" target="_blank"
+           rel="noopener noreferrer">打开{{ icon('external') }}</a>
+        <span class="text-xs text-muted ml-auto whitespace-nowrap">
+          {{ '永久有效' if new_mailbox.ttl == '0' else '有效期 %s 天' % new_mailbox.ttl }}</span>
+      </div>
+    </dd>
     {% endif %}
-    <div role="alert" class="alert alert-warning alert-soft text-sm mt-4">密码仅在此显示一次,请立即保存。</div>
-    <div class="modal-action">
-      <button class="modal-x btn" type="button">关闭</button>
-    </div>
+  </dl>
+  {% if not new_mailbox.ready %}
+  <div class="alert alert--warning mt-4" role="alert">
+    <div class="alert__content"><div class="alert__description">Maildir 预建失败,首次收信或登录后取件链接才可用。</div></div>
   </div>
-</div>
+  {% endif %}
+  <div class="alert alert--warning mt-4" role="alert">
+    <div class="alert__content"><div class="alert__description">密码仅在此显示一次,请立即保存。</div></div>
+  </div>
+  <div class="dlg__actions"><button class="dlg-x button button--tertiary" type="button">关闭</button></div>
+</dialog>
 {% endif %}
 
-<div class="flex gap-2.5 items-center flex-wrap">
-  <label class="input flex-1 min-w-56">
-    {{ icon('search', 'size-4 opacity-50') }}
-    <input type="search" id="box-search" placeholder="搜索邮箱地址或备注…"
-           aria-label="搜索邮箱地址或备注" class="grow">
+{% include "_stat_tiles.html" %}
+
+<div class="flex gap-2.5 items-center flex-wrap mt-6">
+  <label class="search flex-1 min-w-56">
+    {{ icon('search') }}
+    <input type="search" id="box-search" placeholder="搜索邮箱地址或备注…" aria-label="搜索邮箱地址或备注">
   </label>
-  <label class="label cursor-pointer gap-1.5 text-sm text-base-content/70 select-none">
-    <input type="checkbox" id="note-only" class="checkbox checkbox-sm">只搜备注
+  <label class="check-label">
+    <input type="checkbox" id="note-only" class="check">只搜备注
   </label>
-  <button class="btn btn-primary" id="new-link-btn" type="button">{{ icon('plus') }}新增链接</button>
-  <button class="btn" id="add-box-btn" type="button">{{ icon('plus-circle') }}添加邮箱</button>
+  <button class="button button--primary" id="new-link-btn" type="button">{{ icon('plus') }}新增链接</button>
+  <button class="button button--tertiary" id="add-box-btn" type="button">{{ icon('plus-circle') }}添加邮箱</button>
   {% if revoked_count %}
   <form method="post" action="/admin/links/clear-revoked">
     <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
     <input type="hidden" name="next" value="/admin/">
-    <button class="btn" type="submit" title="彻底删除全部已撤销链接"
+    <button class="button button--tertiary" type="submit" title="彻底删除全部已撤销链接"
             onclick="return confirm('将彻底删除全部 {{ revoked_count }} 条已撤销链接及其访问记录,确定?')">{{ icon('trash') }}清除已撤销({{ revoked_count }})</button>
   </form>
   {% endif %}
 </div>
 
-<div class="modal" id="new-link-modal" role="dialog">
-  <div class="modal-box">
-    <h2 class="font-semibold text-lg">新增取件链接</h2>
-    <button class="modal-x btn btn-ghost btn-sm btn-circle absolute right-3 top-3"
-            type="button" aria-label="关闭">✕</button>
-    <form method="post" action="/admin/generate">
-      <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
-      <input type="hidden" name="next" value="/admin/">
-      <fieldset class="fieldset">
-        <legend class="fieldset-legend">邮箱</legend>
-        <select name="email" class="select w-full" aria-label="选择邮箱">
-          {% for b in all_boxes %}<option value="{{ b }}">{{ b }}{% if notes.get(b) %}({{ notes[b] }}){% endif %}</option>{% endfor %}
-        </select>
-      </fieldset>
-      <fieldset class="fieldset">
-        <legend class="fieldset-legend">有效期</legend>
-        <select name="ttl" class="select w-full" aria-label="有效期">
-          <option value="1">1 天</option>
-          <option value="7" selected>7 天</option>
-          <option value="30">30 天</option>
-          <option value="0">永久</option>
-        </select>
-      </fieldset>
-      <div class="modal-action"><button class="btn btn-primary" type="submit">创建</button></div>
-    </form>
-  </div>
-</div>
+<dialog class="dlg" id="new-link-modal" aria-labelledby="new-link-title">
+  <h2 class="dlg__title" id="new-link-title">新增取件链接</h2>
+  <button class="dlg-x dlg__close button button--sm button--ghost button--icon-only" type="button" aria-label="关闭">{{ icon('x') }}</button>
+  <form method="post" action="/admin/generate" class="mt-5 flex flex-col gap-4">
+    <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+    <input type="hidden" name="next" value="/admin/">
+    <label>
+      <span class="field-label">邮箱</span>
+      <select name="email" class="select w-full">
+        {% for b in all_boxes %}<option value="{{ b }}">{{ b }}{% if notes.get(b) %}({{ notes[b] }}){% endif %}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="field-label">有效期</span>
+      <select name="ttl" class="select w-full">
+        <option value="1">1 天</option>
+        <option value="7" selected>7 天</option>
+        <option value="30">30 天</option>
+        <option value="0">永久</option>
+      </select>
+    </label>
+    <div class="dlg__actions mt-2">
+      <button class="dlg-x button button--tertiary" type="button">取消</button>
+      <button class="button button--primary" type="submit">创建</button>
+    </div>
+  </form>
+</dialog>
 
-<div class="modal" id="add-box-modal" role="dialog">
-  <div class="modal-box">
-    <h2 class="font-semibold text-lg">添加邮箱</h2>
-    <button class="modal-x btn btn-ghost btn-sm btn-circle absolute right-3 top-3"
-            type="button" aria-label="关闭">✕</button>
-    <p class="text-sm text-base-content/60 mt-2">
-      在邮件服务器上创建新邮箱并预建 Maildir,取件链接立即可用。
-    </p>
-    <form method="post" action="/admin/mailboxes/add" id="add-box-form">
-      <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
-      <input type="hidden" name="next" value="/admin/">
-      <fieldset class="fieldset">
-        <legend class="fieldset-legend">邮箱地址</legend>
-        <div class="flex items-center gap-2">
-          <input type="text" name="local" required autocomplete="off" maxlength="64"
-                 placeholder="用户名,如 hello" aria-label="邮箱用户名" aria-describedby="mailbox-availability"
-                 class="input flex-1 min-w-0" id="add-box-local">
-          <button class="btn btn-sm" type="button" id="refresh-name-btn"
-                  title="刷新随机姓名" aria-label="刷新随机姓名">{{ icon('refresh') }}刷新</button>
-          <span>@</span>
-          <select name="domain" aria-label="域名" class="select w-auto" id="add-box-domain">
-            {% for d in domains %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
-          </select>
-        </div>
-        <p id="mailbox-availability" class="min-h-4 text-xs text-base-content/60" aria-live="polite"></p>
-      </fieldset>
-      <fieldset class="fieldset">
-        <legend class="fieldset-legend">密码</legend>
-        <input type="text" name="password" autocomplete="off" class="input w-full"
-               placeholder="留空自动生成(创建成功后仅显示一次)" aria-label="邮箱密码">
-      </fieldset>
-      <fieldset class="fieldset">
-        <legend class="fieldset-legend">备注</legend>
-        <input type="text" name="note" autocomplete="off" maxlength="200" class="input w-full"
-               placeholder="可选,如用途/归属人" aria-label="邮箱备注">
-      </fieldset>
-      <fieldset class="fieldset">
-        <legend class="fieldset-legend">同时创建取件链接</legend>
-        <select name="link_ttl" class="select w-full" aria-label="取件链接有效期">
-          <option value="1">有效期 1 天</option>
-          <option value="7">有效期 7 天</option>
-          <option value="30">有效期 30 天</option>
-          <option value="0" selected>永久有效</option>
-          <option value="none">不创建</option>
+<dialog class="dlg" id="add-box-modal" aria-labelledby="add-box-title">
+  <h2 class="dlg__title" id="add-box-title">添加邮箱</h2>
+  <button class="dlg-x dlg__close button button--sm button--ghost button--icon-only" type="button" aria-label="关闭">{{ icon('x') }}</button>
+  <p class="text-sm text-muted mt-1.5">在邮件服务器上创建新邮箱并预建 Maildir,取件链接立即可用。</p>
+  <form method="post" action="/admin/mailboxes/add" id="add-box-form" class="mt-5 flex flex-col gap-4">
+    <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+    <input type="hidden" name="next" value="/admin/">
+    <div>
+      <span class="field-label">邮箱地址</span>
+      <div class="flex items-center gap-2">
+        <input type="text" name="local" required autocomplete="off" maxlength="64"
+               placeholder="用户名" aria-label="邮箱用户名" aria-describedby="mailbox-availability"
+               class="input flex-1 min-w-0" id="add-box-local">
+        <button class="button button--tertiary button--icon-only" type="button" id="refresh-name-btn"
+                title="换一个随机姓名" aria-label="换一个随机姓名">{{ icon('refresh') }}</button>
+      </div>
+      <div class="flex items-center gap-2 mt-2">
+        <span class="text-muted">@</span>
+        <select name="domain" aria-label="域名" class="select flex-1" id="add-box-domain">
+          {% for d in domains %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
         </select>
-      </fieldset>
-      <div class="modal-action"><button class="btn btn-primary" type="submit" id="add-box-submit">创建邮箱</button></div>
-    </form>
-  </div>
-</div>
+      </div>
+      <p id="mailbox-availability" class="field-hint" aria-live="polite"></p>
+    </div>
+    <label>
+      <span class="field-label">密码</span>
+      <input type="text" name="password" autocomplete="off" class="input input--full-width"
+             placeholder="留空自动生成(创建成功后仅显示一次)">
+    </label>
+    <label>
+      <span class="field-label">备注</span>
+      <input type="text" name="note" autocomplete="off" maxlength="200" class="input input--full-width"
+             placeholder="可选,如用途/归属人">
+    </label>
+    <label>
+      <span class="field-label">同时创建取件链接</span>
+      <select name="link_ttl" class="select w-full">
+        <option value="1">有效期 1 天</option>
+        <option value="7">有效期 7 天</option>
+        <option value="30">有效期 30 天</option>
+        <option value="0" selected>永久有效</option>
+        <option value="none">不创建</option>
+      </select>
+    </label>
+    <div class="dlg__actions mt-2">
+      <button class="dlg-x button button--tertiary" type="button">取消</button>
+      <button class="button button--primary" type="submit" id="add-box-submit">创建邮箱</button>
+    </div>
+  </form>
+</dialog>
 
-<div class="card bg-base-100 mt-4 hidden" id="no-match">
-  <div class="card-body items-center text-center py-8">
-    <h1 class="text-lg font-semibold">没有匹配的邮箱</h1>
-    <p class="text-sm text-base-content/60">换个关键词试试。</p>
-  </div>
-</div>
+<section class="card card--default mt-4 hidden items-center py-10 text-center" id="no-match">
+  <h2 class="text-base font-semibold">没有匹配的邮箱</h2>
+  <p class="text-sm text-muted">换个关键词试试。</p>
+</section>
 
 {% if not boxes %}
-<div class="card bg-base-100 shadow-sm mt-4">
-  <div class="card-body items-center text-center py-14">
-    <h1 class="text-lg font-semibold">还没有取件链接</h1>
-    <p class="text-sm text-base-content/60">点击上方「+ 新增链接」为任意邮箱创建一个。</p>
-  </div>
-</div>
+<section class="card card--default mt-4 items-center py-14 text-center">
+  <span class="flex size-14 items-center justify-center rounded-full bg-default text-muted">{{ icon('link', 'size-6') }}</span>
+  <h2 class="mt-2 text-lg font-semibold">还没有取件链接</h2>
+  <p class="text-sm text-muted">点击上方「新增链接」为任意邮箱创建一个。</p>
+</section>
 {% endif %}
 
 {# 头像渐变色按首字母轮换(类名写全,Tailwind 才扫描得到) #}
 {% set avatar_bg = ['from-indigo-500 to-blue-600', 'from-sky-500 to-blue-600',
                     'from-violet-500 to-indigo-600', 'from-blue-500 to-cyan-600',
-                    'from-blue-600 to-indigo-700', 'from-cyan-500 to-sky-600'] %}
+                    'from-emerald-500 to-teal-600', 'from-cyan-500 to-sky-600'] %}
 <div class="flex flex-col gap-3 mt-4">
 {% for b in boxes %}
 {% set links = links_by_email.get(b, []) %}
-<div class="card bg-base-100 box-card hover:border-primary/40 transition-colors"
-     data-email="{{ b }}" data-note="{{ notes.get(b, '') }}">
-  <div class="flex gap-4 px-4 py-3.5 sm:px-5">
-    <div class="size-11 sm:size-12 shrink-0 rounded-full grid place-items-center text-lg font-semibold text-white
-                bg-linear-to-br shadow-md shadow-primary/20
+<article class="card card--default box-card p-0" data-email="{{ b }}" data-note="{{ notes.get(b, '') }}">
+  <div class="flex gap-4 px-4 py-4 sm:px-5">
+    <div class="size-11 shrink-0 rounded-full grid place-items-center text-base font-semibold text-white bg-linear-to-br
                 {{ avatar_bg['abcdefghijklmnopqrstuvwxyz0123456789'.find(b[0] | lower) % 6] }}"
          aria-hidden="true">{{ b[0] | upper }}</div>
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-x-2 gap-y-1 flex-wrap">
-        <span class="font-semibold text-[15px] break-all">{{ b }}</span>
+        <span class="font-semibold break-all">{{ b }}</span>
         {% if notes.get(b) %}
-        {# 备注不用 .badge:徽章禁止折行,长备注会撑破卡片 #}
-        <span class="text-sm font-medium text-secondary bg-secondary/10 rounded-md px-2 py-0.5
+        {# 备注不用 chip:chip 禁止折行,长备注会撑破卡片 #}
+        <span class="text-xs font-medium text-accent-soft-foreground bg-accent-soft rounded-lg px-2 py-0.5
                      wrap-anywhere box-decoration-clone">{{ notes[b] }}</span>
         {% endif %}
-        <span class="badge badge-sm border-0 bg-base-content/10 text-base-content/70">{{ links | length }} 个链接</span>
+        <a class="chip chip--default hover:bg-default-hover" href="/admin/mails?box={{ b | urlencode }}"
+           title="查看这个邮箱的邮件">{{ icon('mail', 'size-3') }}<span class="chip__label">{{ ms.box_counts.get(b, 0) }} 封</span></a>
+        <span class="chip chip--default"><span class="chip__label">{{ links | length }} 个链接</span></span>
         <form method="post" action="/admin/mailboxes/note" class="note-form">
           <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
           <input type="hidden" name="next" value="/admin/">
           <input type="hidden" name="email" value="{{ b }}">
           <input type="hidden" name="note" value="{{ notes.get(b, '') }}">
-          <button class="btn btn-ghost btn-xs btn-square text-base-content/50" type="submit"
+          <button class="button button--sm button--ghost button--icon-only text-muted" type="submit"
                   title="{{ '编辑备注' if notes.get(b) else '添加备注' }}"
-                  aria-label="{{ '编辑备注' if notes.get(b) else '添加备注' }}">{{ icon('pencil', 'size-3.5') }}</button>
+                  aria-label="{{ '编辑备注' if notes.get(b) else '添加备注' }}">{{ icon('pencil') }}</button>
         </form>
       </div>
 
-      <div class="row-list">
+      <div class="row-list mt-1">
         {% for l in links %}
-        <div class="flex flex-col xl:flex-row xl:items-center gap-x-4 gap-y-2.5 py-2.5 first:pt-1.5 last:pb-0.5">
+        <div class="flex flex-col xl:flex-row xl:items-center gap-x-4 gap-y-2.5 py-3 last:pb-0">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="badge badge-sm {{ l.status_cls }}">{{ l.status }}</span>
-              <span class="text-sm text-base-content/80">{{ l.remaining }}</span>
+              <span class="chip {{ l.status_cls }}"><span class="chip__label">{{ l.status }}</span></span>
+              <span class="text-sm">{{ l.remaining }}</span>
             </div>
-            <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-base-content/55">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1.5 text-xs text-muted">
               <span class="inline-flex items-center gap-1 whitespace-nowrap">{{ icon('clock', 'size-3.5') }}创建于 {{ l.created_str }}</span>
-              <span class="text-base-content/20 max-sm:hidden" aria-hidden="true">|</span>
               <span class="inline-flex items-center gap-1 whitespace-nowrap">{{ icon('calendar', 'size-3.5') }}{% if l.expires_str %}过期于 {{ l.expires_str }}{% else %}永不过期{% endif %}</span>
-              <span class="text-base-content/20 max-sm:hidden" aria-hidden="true">|</span>
               <span class="inline-flex items-center gap-1 whitespace-nowrap">{{ icon('eye', 'size-3.5') }}访问 {{ l.visits }} 次 · 最近 {{ l.last_visit_str }}</span>
             </div>
           </div>
-          <div class="flex gap-2 flex-wrap items-center xl:justify-end">
-            <button class="btn btn-sm" onclick="copyText('{{ l.url }}', this)">{{ icon('copy', 'size-3.5') }}复制 URL</button>
-            <a class="btn btn-sm" href="{{ l.url }}" target="_blank" rel="noopener noreferrer">打开{{ icon('external', 'size-3.5') }}</a>
-            <a class="btn btn-sm" href="/admin/links/{{ l.id }}">日志</a>
-            <details class="dropdown dropdown-end">
-              <summary class="btn btn-sm">更多{{ icon('chevron-down', 'size-3.5') }}</summary>
-              <form method="post" action="/admin/links/{{ l.id }}/extend"
-                    class="dropdown-content z-20 mt-1 w-40 rounded-box border border-base-content/10 bg-base-100 p-1.5 shadow-xl">
+          <div class="flex gap-1.5 flex-wrap items-center xl:justify-end">
+            <button class="button button--sm button--secondary" type="button" onclick="copyText('{{ l.url }}', this)">{{ icon('copy') }}复制 URL</button>
+            <a class="button button--sm button--tertiary" href="{{ l.url }}" target="_blank" rel="noopener noreferrer">打开{{ icon('external') }}</a>
+            <a class="button button--sm button--tertiary" href="/admin/links/{{ l.id }}">日志</a>
+            <details class="dd">
+              <summary class="button button--sm button--tertiary">延期{{ icon('chevron-down') }}</summary>
+              <form method="post" action="/admin/links/{{ l.id }}/extend" class="dd__menu">
                 <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
                 <input type="hidden" name="next" value="/admin/">
-                <ul class="menu menu-sm w-full p-0">
-                  <li class="menu-title">延期</li>
-                  <li><button type="submit" name="ttl" value="1">+1 天</button></li>
-                  <li><button type="submit" name="ttl" value="7">+7 天</button></li>
-                  <li><button type="submit" name="ttl" value="30">+30 天</button></li>
-                  <li><button type="submit" name="ttl" value="0">改为永久</button></li>
-                </ul>
+                <span class="dd__title">在当前到期时间上延长</span>
+                <button class="dd__item" type="submit" name="ttl" value="1">+1 天</button>
+                <button class="dd__item" type="submit" name="ttl" value="7">+7 天</button>
+                <button class="dd__item" type="submit" name="ttl" value="30">+30 天</button>
+                <button class="dd__item" type="submit" name="ttl" value="0">改为永久</button>
               </form>
             </details>
             {% if not l.expired %}
@@ -254,17 +240,17 @@
               <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
               <input type="hidden" name="next" value="/admin/">
               {% if l.active %}
-              <button class="btn btn-sm btn-warning btn-soft" type="submit">{{ icon('ban', 'size-3.5') }}撤销</button>
+              <button class="button button--sm button--warning-soft" type="submit">{{ icon('ban') }}撤销</button>
               {% else %}
-              <button class="btn btn-sm btn-success btn-soft" type="submit">{{ icon('check', 'size-3.5') }}启用</button>
+              <button class="button button--sm button--success-soft" type="submit">{{ icon('check') }}启用</button>
               {% endif %}
             </form>
             {% endif %}
             <form method="post" action="/admin/links/{{ l.id }}/delete">
               <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
               <input type="hidden" name="next" value="/admin/">
-              <button class="btn btn-sm btn-error btn-soft" type="submit"
-                      onclick="return confirm('删除后该 URL 永久失效,访问记录也会一并清除,确定删除?')">{{ icon('trash', 'size-3.5') }}删除</button>
+              <button class="button button--sm button--danger-soft button--icon-only" type="submit" title="删除" aria-label="删除链接"
+                      onclick="return confirm('删除后该 URL 永久失效,访问记录也会一并清除,确定删除?')">{{ icon('trash') }}</button>
             </form>
           </div>
         </div>
@@ -272,7 +258,7 @@
       </div>
     </div>
   </div>
-</div>
+</article>
 {% endfor %}
 </div>
 
@@ -297,6 +283,7 @@
         if (show) visible++;
       }
       noMatch.classList.toggle('hidden', !q || visible > 0);
+      noMatch.classList.toggle('flex', !!q && visible === 0);
     }
     // 关键词/只搜备注同步到地址栏 ?q=&note=1,刷新页面后据此恢复过滤
     function onChange() {
@@ -340,9 +327,8 @@
       }
       function setStatus(text, kind, canSubmit) {
         status.textContent = text;
-        status.className = 'min-h-4 text-xs ' + (
-          kind === 'ok' ? 'text-success' :
-          kind === 'error' ? 'text-error' : 'text-base-content/60');
+        status.className = 'field-hint ' + (
+          kind === 'ok' ? 'text-success' : kind === 'error' ? 'text-danger' : '');
         submit.disabled = !canSubmit;
       }
       function checkMailbox() {
@@ -402,12 +388,12 @@
       document.getElementById('refresh-name-btn').addEventListener('click', regenerate);
       return regenerate;
     }
-    // 弹窗打开(关闭逻辑在 base.html:✕ / 遮罩点击)
+    // 弹窗打开(关闭逻辑在 base.html:✕ / 取消 / 遮罩点击 / Esc)
     function bindModal(btnId, modalId, focusSel, onOpen) {
       var btn = document.getElementById(btnId);
       var modal = document.getElementById(modalId);
       btn.addEventListener('click', function () {
-        modal.classList.add('modal-open');
+        modal.showModal();
         if (onOpen) onOpen();
         var f = modal.querySelector(focusSel);
         if (f) f.focus();
@@ -444,7 +430,7 @@
     if (btn && btn.name) body.append(btn.name, btn.value);
     if (btn) {
       btn.disabled = true;
-      btn.insertAdjacentHTML('afterbegin', '<span class="loading loading-spinner loading-xs"></span>');
+      btn.insertAdjacentHTML('afterbegin', '<span class="spin"></span>');
     }
     fetch(form.action, { method: 'POST', body: body, credentials: 'same-origin',
                          headers: { 'X-Fetch': '1' } })
@@ -453,9 +439,12 @@
           var fresh = new DOMParser().parseFromString(html, 'text/html')
                                      .getElementById('admin-main');
           if (res.ok && fresh) {
+            // 先关掉打开中的弹窗,否则替换 DOM 后遮罩残留
+            main.querySelectorAll('dialog[open]').forEach(function (d) { d.close(); });
             main.innerHTML = fresh.innerHTML;
             initAdmin();
             initToasts();
+            initDialogs();
           } else if (res.ok) {
             location.href = res.url;  // 会话失效被跳到登录页等
           } else {

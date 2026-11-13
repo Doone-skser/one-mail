@@ -1,28 +1,33 @@
 {% extends "base.html" %}
 {% block title %}管理员登录{% endblock %}
-{% block container_class %}max-w-md{% endblock %}
+{% block container_class %}max-w-sm{% endblock %}
 {% block content %}
-<div class="card bg-base-100 shadow-sm mt-12">
-  <div class="card-body">
-    <h1 class="card-title text-xl">管理员登录</h1>
+<section class="card card--default mt-10 p-6">
+  <div class="card__content gap-5">
+    <div class="flex flex-col items-center gap-2 text-center">
+      <img class="size-12" src="{{ url_for('static', filename='logo.png') }}" alt="">
+      <h1 class="text-xl font-semibold">管理员登录</h1>
+      <p class="text-sm text-muted">使用邮件服务器管理员账号登录</p>
+    </div>
     {% if error %}
-    <div role="alert" class="alert alert-warning alert-soft text-sm">{{ error }}</div>
+    <div class="alert alert--warning" role="alert">
+      <div class="alert__content"><div class="alert__description">{{ error }}</div></div>
+    </div>
     {% endif %}
-    <form method="post" class="mt-2">
-      <fieldset class="fieldset">
-        <legend class="fieldset-legend">管理员邮箱</legend>
+    <form method="post" class="flex flex-col gap-4">
+      <label>
+        <span class="field-label">管理员邮箱</span>
         <input type="email" name="email" required autofocus placeholder="admin@example.com"
-               class="input w-full">
-      </fieldset>
-      <fieldset class="fieldset">
-        <legend class="fieldset-legend">密码</legend>
-        <input type="password" name="password" required class="input w-full">
-      </fieldset>
-      <button class="btn btn-primary w-full mt-4" type="submit">登录</button>
+               autocomplete="username" class="input input--full-width">
+      </label>
+      <label>
+        <span class="field-label">密码</span>
+        <input type="password" name="password" required autocomplete="current-password"
+               class="input input--full-width">
+      </label>
+      <button class="button button--primary button--full-width mt-1" type="submit">登录</button>
     </form>
-    <p class="text-sm text-base-content/60 mt-3">
-      使用邮件服务器管理员账号登录,会话有效期 12 小时。
-    </p>
+    <p class="text-center text-xs text-muted">会话有效期 12 小时</p>
   </div>
-</div>
+</section>
 {% endblock %}
