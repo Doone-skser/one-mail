@@ -40,7 +40,7 @@
 // 复制(.copy-btn 的 data-code,或 onclick="copyText(...)"):按钮上显示"已复制 ✓"
 function copyText(t, btn) {
   function feedback() {
-    if (!btn) { alert('已复制'); return; }
+    if (!btn) { uiToast('已复制'); return; }
     if (btn.dataset.copying) return;
     btn.dataset.copying = '1';
     var old = btn.innerHTML;  // 存 innerHTML:按钮里可能带图标
@@ -86,6 +86,109 @@ function initDialogs() {
     if (d.showModal) d.showModal(); else d.setAttribute('open', '');
   });
 }
+// ---------- 统一弹窗:替代浏览器原生 alert / confirm / prompt ----------
+// uiConfirm(消息, {title, ok, danger}) -> Promise<bool>
+// uiPrompt(消息, 默认值, {title, ok, maxlength}) -> Promise<string|null>(取消为 null)
+// uiAlert(消息, {title}) -> Promise
+function uiDialog(o) {
+  var d = document.getElementById('ui-dialog');
+  if (!d) {
+    d = document.createElement('dialog');
+    d.id = 'ui-dialog';
+    d.className = 'dlg';
+    d.setAttribute('aria-labelledby', 'ui-dialog-title');
+    d.innerHTML =
+      '<h2 class="dlg__title" id="ui-dialog-title"></h2>' +
+      '<p class="ui-msg mt-2 text-sm text-muted whitespace-pre-line wrap-anywhere"></p>' +
+      '<input class="ui-input input input--full-width mt-4" autocomplete="off">' +
+      '<div class="dlg__actions">' +
+      '<button type="button" class="ui-cancel button button--tertiary">取消</button>' +
+      '<button type="button" class="ui-ok button button--primary">确定</button></div>';
+    document.body.appendChild(d);
+    d.querySelector('.ui-cancel').addEventListener('click', function () { d.close('cancel'); });
+    d.querySelector('.ui-ok').addEventListener('click', function () { d.close('ok'); });
+    d.querySelector('.ui-input').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); d.close('ok'); }
+    });
+  }
+  var input = d.querySelector('.ui-input');
+  var ok = d.querySelector('.ui-ok');
+  var cancel = d.querySelector('.ui-cancel');
+  d.querySelector('.dlg__title').textContent = o.title || '提示';
+  d.querySelector('.ui-msg').textContent = o.message || '';
+  d.querySelector('.ui-msg').hidden = !o.message;
+  input.hidden = !o.prompt;
+  input.value = o.value || '';
+  if (o.maxlength) input.maxLength = o.maxlength; else input.removeAttribute('maxlength');
+  input.placeholder = o.placeholder || '';
+  ok.textContent = o.ok || '确定';
+  ok.className = 'ui-ok button ' + (o.danger ? 'button--danger' : 'button--primary');
+  cancel.hidden = !!o.alert;
+  return new Promise(function (resolve) {
+    function done() {
+      d.removeEventListener('close', done);
+      var yes = d.returnValue === 'ok';
+      resolve(o.prompt ? (yes ? input.value : null) : yes);
+    }
+    d.returnValue = '';
+    d.addEventListener('close', done);
+    d.showModal();
+    if (o.prompt) { input.focus(); input.select(); }
+    else if (o.danger) cancel.focus();   // 危险操作默认焦点放"取消",回车不会误删
+    else ok.focus();
+  });
+}
+function uiConfirm(message, o) {
+  o = o || {};
+  return uiDialog({ title: o.title || '确认操作', message: message, ok: o.ok, danger: o.danger });
+}
+function uiPrompt(message, value, o) {
+  o = o || {};
+  return uiDialog({ title: o.title || message, message: o.title ? message : '', prompt: true,
+                    value: value, ok: o.ok, maxlength: o.maxlength, placeholder: o.placeholder });
+}
+function uiAlert(message, o) {
+  o = o || {};
+  return uiDialog({ title: o.title || '提示', message: message, alert: true, ok: o.ok || '知道了' });
+}
+function uiToast(text) {
+  var stack = document.querySelector('.toast-stack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.className = 'toast-stack';
+    document.body.appendChild(stack);
+  }
+  var t = document.createElement('div');
+  t.className = 'toast-item';
+  t.setAttribute('role', 'status');
+  t.innerHTML = '<span class="flex-1 break-all"></span>' +
+    '<button class="toast-close button button--sm button--ghost button--icon-only" type="button" aria-label="关闭">✕</button>';
+  t.firstChild.textContent = text;
+  stack.appendChild(t);
+  initToasts();
+}
+// 表单二次确认:<form data-confirm="..."> 或提交按钮上的 data-confirm(可加 data-danger)。
+// 捕获阶段拦截,先于页面里的 fetch 提交逻辑;确认后带原提交按钮重新提交。
+document.addEventListener('submit', function (e) {
+  var form = e.target;
+  var btn = e.submitter;
+  var src = btn && btn.hasAttribute('data-confirm') ? btn :
+            form.hasAttribute('data-confirm') ? form : null;
+  if (!src) return;
+  if (form.dataset.confirmed) { delete form.dataset.confirmed; return; }
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  uiConfirm(src.getAttribute('data-confirm'), {
+    title: src.getAttribute('data-title') || '确认操作',
+    ok: src.getAttribute('data-ok') || '确定',
+    danger: src.hasAttribute('data-danger')
+  }).then(function (yes) {
+    if (!yes) return;
+    form.dataset.confirmed = '1';
+    if (form.requestSubmit) form.requestSubmit(btn || undefined); else form.submit();
+  });
+}, true);
+
 initToasts();
 initDialogs();
 document.addEventListener('click', function (e) {

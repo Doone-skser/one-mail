@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """OneMail - 邮件取件小服务 (只读访问 MIAB Maildir)"""
 import base64
+import functools
 import grp
 import html as html_mod
 import json
@@ -26,6 +27,7 @@ from zoneinfo import ZoneInfo
 
 from flask import (Flask, abort, g, redirect, render_template, request,
                    Response, session, url_for)
+from markupsafe import Markup
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE, 'onemail.db')
@@ -146,6 +148,13 @@ def init_db():
         );
     ''')
     # 迁移:为 links 增加 expires_at(NULL = 永久),已有行默认 NULL
+    # 索引:访问日志按链接聚合/取最近一次、限速计数都靠它们,没有索引时每次全表扫
+    db.executescript('''
+        CREATE INDEX IF NOT EXISTS idx_access_log_link ON access_log (link_id, ts);
+        CREATE INDEX IF NOT EXISTS idx_access_log_ts ON access_log (ts);
+        CREATE INDEX IF NOT EXISTS idx_attempts_kind_key ON attempts (kind, key, ts);
+        CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT, ts REAL);
+    ''')
     cols = [r[1] for r in db.execute('PRAGMA table_info(links)')]
     if 'expires_at' not in cols:
         db.execute('ALTER TABLE links ADD COLUMN expires_at REAL')
@@ -182,30 +191,80 @@ _users_lock = threading.Lock()
 USERS_CACHE_SEC = 300
 
 
-def miab_users(email, password):
-    """拉取邮箱列表,缓存 5 分钟(添加邮箱时主动失效)。"""
-    with _users_lock:
-        if (_users_cache['data'] is not None
-                and time.time() - _users_cache['ts'] < USERS_CACHE_SEC):
-            return _users_cache['data']
+def _fetch_users(email, password):
+    """同步调 MIAB 拉邮箱列表并写入缓存(内存 + sqlite);失败返回 None。"""
     status, data = miab_query(email, password)
     if status != 200:
         return None
-    boxes = []
-    for domain in data:
-        for u in domain.get('users', []):
-            boxes.append(u.get('email', ''))
-    boxes.sort()
+    boxes = sorted(u.get('email', '') for domain in data
+                   for u in domain.get('users', []))
+    now = time.time()
     with _users_lock:
-        _users_cache['ts'] = time.time()
+        _users_cache['ts'] = now
         _users_cache['data'] = boxes
+    try:
+        db = sqlite3.connect(DB_PATH)
+        db.execute('INSERT OR REPLACE INTO kv (k, v, ts) VALUES (?,?,?)',
+                   ('miab_users', json.dumps(boxes), now))
+        db.commit()
+        db.close()
+    except sqlite3.Error:
+        pass
     return boxes
 
 
+def _refresh_users_bg(email, password):
+    with _users_lock:
+        if _users_cache.get('refreshing'):
+            return
+        _users_cache['refreshing'] = True
+
+    def run():
+        try:
+            _fetch_users(email, password)
+        finally:
+            with _users_lock:
+                _users_cache['refreshing'] = False
+    threading.Thread(target=run, name='onemail-users', daemon=True).start()
+
+
+def miab_users(email, password):
+    """邮箱列表。MIAB 接口要走一次 HTTPS + 管理守护进程,较慢,所以:
+    - 5 分钟内直接用缓存;
+    - 过期后先返回旧数据,后台线程刷新(stale-while-revalidate);
+    - 列表同时存进 sqlite,服务重启后也不用等这一次接口调用。
+    只有完全没有缓存(首次部署 / 添加邮箱后主动失效)时才同步调接口。"""
+    with _users_lock:
+        data, ts = _users_cache['data'], _users_cache['ts']
+    if data is None:
+        try:
+            db = sqlite3.connect(DB_PATH)
+            row = db.execute("SELECT v, ts FROM kv WHERE k = 'miab_users'").fetchone()
+            db.close()
+        except sqlite3.Error:
+            row = None
+        if row is not None:
+            data, ts = json.loads(row[0]), row[1]
+            with _users_lock:
+                _users_cache['data'], _users_cache['ts'] = data, ts
+    if data is None:
+        return _fetch_users(email, password)
+    if time.time() - ts >= USERS_CACHE_SEC:
+        _refresh_users_bg(email, password)
+    return data
+
+
 def invalidate_users_cache():
-    """新增邮箱后清掉列表缓存,让下拉框立刻出现新地址。"""
+    """新增邮箱后清掉列表缓存(含 sqlite 里的副本),让下拉框立刻出现新地址。"""
     with _users_lock:
         _users_cache['data'] = None
+    try:
+        db = sqlite3.connect(DB_PATH)
+        db.execute("DELETE FROM kv WHERE k = 'miab_users'")
+        db.commit()
+        db.close()
+    except sqlite3.Error:
+        pass
 
 
 def miab_add_user(admin_email, admin_password, new_email, new_password):
@@ -227,6 +286,67 @@ def miab_add_user(admin_email, admin_password, new_email, new_password):
         return False, str(e)
     # MIAB 不同版本成功文案不同:旧版 'OK',新版 'mail user added'
     return (text in ('OK', 'mail user added')), text
+
+
+# ---------- 邮箱创建时间 ----------
+# MIAB 的用户表和 API 都没有创建时间,这里用邮箱目录的真实创建时间(birth time):
+# 邮箱目录在建号时由 OneMail(ensure_maildir)或 dovecot 首次投递/登录时创建。
+# 拿不到时退回 dovecot-uidvalidity.<十六进制时间戳>(dovecot 初始化邮箱的时间)。
+_created_cache = {}
+
+
+def _statx_btime(path):
+    """Linux:用 statx 取 birth time(Python 3.12 前 os.stat 不提供)。取不到返回 None。"""
+    try:
+        import ctypes
+        import struct
+        fn = getattr(ctypes.CDLL(None, use_errno=True), 'statx', None)
+        if fn is None:
+            return None
+        buf = ctypes.create_string_buffer(256)   # struct statx 固定 256 字节
+        # statx(AT_FDCWD, path, 0, STATX_BTIME, buf)
+        if fn(ctypes.c_int(-100), os.fsencode(path), ctypes.c_int(0),
+              ctypes.c_uint(0x800), buf) != 0:
+            return None
+        mask = struct.unpack_from('I', buf, 0)[0]
+        if not mask & 0x800:                     # 文件系统不支持 birth time
+            return None
+        sec = struct.unpack_from('q', buf, 80)[0]  # stx_btime.tv_sec
+        return float(sec) if sec > 0 else None
+    except Exception:
+        return None
+
+
+def mailbox_created(email_addr):
+    """邮箱创建时间戳,未知返回 None(结果缓存,创建时间不会变)。"""
+    if email_addr in _created_cache:
+        return _created_cache[email_addr]
+    local, _, domain = email_addr.partition('@')
+    base = os.path.normpath(os.path.join(MAILBOX_ROOT, domain, local))
+    if not local or not domain or \
+            not base.startswith(os.path.normpath(MAILBOX_ROOT) + os.sep):
+        return None
+    ts = None
+    try:
+        ts = getattr(os.stat(base), 'st_birthtime', None) or _statx_btime(base)
+    except OSError:
+        return None    # 目录还不存在:不缓存,建好后再取
+    if not ts:
+        try:
+            for name in os.listdir(base):
+                if name.startswith('dovecot-uidvalidity.'):
+                    ts = float(int(name.rsplit('.', 1)[1], 16))
+                    break
+        except (OSError, ValueError):
+            pass
+    if ts:
+        _created_cache[email_addr] = ts
+    return ts
+
+
+def created_str(email_addr, fmt='%Y-%m-%d %H:%M'):
+    ts = mailbox_created(email_addr)
+    return datetime.fromtimestamp(ts, TZ).strftime(fmt) if ts else ''
 
 
 def ensure_maildir(email_addr):
@@ -254,7 +374,22 @@ def ensure_maildir(email_addr):
 
 # ---------- Maildir 只读解析 ----------
 
+_maildir_cache = {}
+
+
 def maildir_path(email_addr):
+    """邮箱的 Maildir 目录,不存在返回 None。找到的结果缓存(目录位置不会变;
+    邮箱被删后缓存的路径列目录会失败,按空邮箱处理);找不到的不缓存,建好后即可见。"""
+    hit = _maildir_cache.get(email_addr)
+    if hit is not None:
+        return hit
+    path = _maildir_path(email_addr)
+    if path is not None:
+        _maildir_cache[email_addr] = path
+    return path
+
+
+def _maildir_path(email_addr):
     local, _, domain = email_addr.partition('@')
     if not local or not domain:
         return None
@@ -268,25 +403,51 @@ def maildir_path(email_addr):
     return None
 
 
-def list_messages(maildir):
-    """返回 [(key, mtime)],按 mtime 倒序(最新在前)。"""
-    entries = []
-    for sub in ('cur', 'new'):
-        d = os.path.join(maildir, sub)
-        try:
-            names = os.listdir(d)
-        except OSError:
-            continue
-        for name in names:
-            if name.startswith('.'):
-                continue
-            try:
-                mt = os.path.getmtime(os.path.join(d, name))
-            except OSError:
-                continue
-            entries.append((name, mt))
+# 目录列表缓存:dir -> (目录 mtime_ns, [(文件名, 文件 mtime)])。
+# Maildir 里增/删/改名(标记已读)都会改变所在目录的 mtime,目录没变就直接复用,
+# 省掉逐个文件 stat(管理端一次要扫上百个邮箱、上千封信)。
+_dir_cache = {}
+# 目录 mtime 距今不到这么多秒时不信任缓存:内核时间戳有粒度,同一时间片内
+# 先列目录、再投递新信,目录 mtime 可能不变,刚变动过的目录每次都重新列
+DIR_CACHE_SETTLE_SEC = 2
+
+
+def _list_dir(d):
+    try:
+        dmt = os.stat(d).st_mtime_ns
+    except OSError:
+        return []
+    ent = _dir_cache.get(d)
+    if ent is not None and ent[0] == dmt and \
+            time.time() - dmt / 1e9 > DIR_CACHE_SETTLE_SEC:
+        return ent[1]
+    items = []
+    try:
+        with os.scandir(d) as it:
+            for e in it:
+                if e.name.startswith('.'):
+                    continue
+                try:
+                    items.append((e.name, e.stat().st_mtime))
+                except OSError:
+                    continue
+    except OSError:
+        return []
+    _dir_cache[d] = (dmt, items)
+    return items
+
+
+def list_messages_sub(maildir):
+    """返回 [(key, mtime, sub)],sub 为 'cur'/'new',按 mtime 倒序(最新在前)。"""
+    entries = [(name, mt, sub) for sub in ('cur', 'new')
+               for name, mt in _list_dir(os.path.join(maildir, sub))]
     entries.sort(key=lambda e: e[1], reverse=True)
     return entries
+
+
+def list_messages(maildir):
+    """返回 [(key, mtime)],按 mtime 倒序(最新在前)。"""
+    return [(k, mt) for k, mt, _ in list_messages_sub(maildir)]
 
 
 def open_message(maildir, key):
@@ -629,6 +790,49 @@ def fmt_size(n):
 app.jinja_env.filters['fmt_size'] = fmt_size
 
 
+# 线性图标(Lucide 路径,ISC 协议)。模板里直接 {{ icon('copy') }}。
+# 早先是 Jinja 宏,一个首页要调用上千次宏,占了渲染时间的大头;改成 Python 函数
+# 并按 (名字, 类名) 缓存生成好的 SVG 字符串。
+ICON_PATHS = {
+    'key': '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/>',
+    'mail': '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+    'list': '<path d="M3 6h.01M3 12h.01M3 18h.01M8 6h13M8 12h13M8 18h13"/>',
+    'chart': '<path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/>',
+    'logout': '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>',
+    'search': '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    'plus': '<path d="M5 12h14M12 5v14"/>',
+    'plus-circle': '<circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/>',
+    'copy': '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+    'external': '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+    'file': '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>',
+    'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+    'ban': '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
+    'check': '<path d="M20 6 9 17l-5-5"/>',
+    'trash': '<path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+    'clock': '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    'calendar': '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    'eye': '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+    'pencil': '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
+    'link': '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+    'inbox': '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+    'x': '<path d="M18 6 6 18M6 6l12 12"/>',
+    'arrow-left': '<path d="m12 19-7-7 7-7M19 12H5"/>',
+    'refresh': '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 21H3v-5"/>',
+}
+
+
+@functools.lru_cache(maxsize=512)
+def icon(name, cls='size-4'):
+    return Markup(
+        '<svg class="%s shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+        ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'
+        ' aria-hidden="true">%s</svg>' % (html_mod.escape(cls), ICON_PATHS[name]))
+
+
+app.jinja_env.globals['icon'] = icon
+app.jinja_env.globals['mailbox_created'] = created_str
+
+
 def get_link(token):
     return get_db().execute(
         'SELECT * FROM links WHERE token = ?', (token,)).fetchone()
@@ -893,6 +1097,22 @@ def index():
 _code_cache = {}
 
 
+# 全文搜索用的正文纯文本缓存:(maildir, key) -> (mtime, 小写文本)。
+# 和验证码提取共用一次解析;每封只留前 BODY_TEXT_MAX 字符,控制内存
+_text_cache = {}
+BODY_TEXT_MAX = 20000
+
+
+def mail_text(maildir, key, mt):
+    """邮件的小写纯文本(主题 + 正文前 BODY_TEXT_MAX 字符),带缓存。"""
+    ent = _text_cache.get((maildir, key))
+    if ent is None or ent[0] != mt:
+        _code_cache.pop((maildir, key), None)
+        _entry_for(maildir, key, mt)
+        ent = _text_cache.get((maildir, key))
+    return ent[1] if ent is not None and ent[0] == mt else ''
+
+
 def _entry_for(maildir, key, mt):
     ck = (maildir, key)
     ent = _code_cache.get(ck)
@@ -902,8 +1122,12 @@ def _entry_for(maildir, key, mt):
     msg = open_message(maildir, key)
     if msg is not None:
         text_body, html_body, _atts = extract_parts(msg)
-        code = extract_code(hdr(msg, 'Subject'),
-                            msg_plain_text(msg, text_body, html_body))
+        plain = msg_plain_text(msg, text_body, html_body)
+        code = extract_code(hdr(msg, 'Subject'), plain)
+        if len(_text_cache) > 20000:
+            _text_cache.clear()
+        _text_cache[ck] = (mt, (hdr(msg, 'Subject') + '\n' +
+                                (plain or '')[:BODY_TEXT_MAX]).lower())
         from_addr = hdr(msg, 'From')
         magic_link = extract_anthropic_magic_link(from_addr, text_body, html_body)
         if code is not None or magic_link is not None:
@@ -1491,27 +1715,6 @@ def _mail_meta(maildir, key, sub, mt):
     return meta
 
 
-def list_messages_sub(maildir):
-    """同 list_messages,但额外返回所在子目录:[(key, mtime, sub)],最新在前。"""
-    entries = []
-    for sub in ('cur', 'new'):
-        d = os.path.join(maildir, sub)
-        try:
-            names = os.listdir(d)
-        except OSError:
-            continue
-        for name in names:
-            if name.startswith('.'):
-                continue
-            try:
-                mt = os.path.getmtime(os.path.join(d, name))
-            except OSError:
-                continue
-            entries.append((name, mt, sub))
-    entries.sort(key=lambda e: e[1], reverse=True)
-    return entries
-
-
 def _valid_key(key):
     return bool(key) and '/' not in key and '\\' not in key \
         and not key.startswith('.') and '\x00' not in key
@@ -1557,17 +1760,6 @@ def _admin_maildir(boxes, box):
     if md is None:
         abort(404)
     return md
-
-
-def _mail_body_text(path):
-    """读整封邮件,返回用于全文搜索的小写纯文本(主题+正文前 CODE_SCAN_MAX 字符)。"""
-    try:
-        with open(path, 'rb') as f:
-            msg = BytesParser(policy=policy.default).parse(f)
-        text_body, html_body, _ = extract_parts(msg)
-        return (msg_plain_text(msg, text_body, html_body) or '')[:CODE_SCAN_MAX].lower()
-    except Exception:
-        return ''
 
 
 def collect_mail_entries(boxes, only_box=None):
@@ -1630,11 +1822,14 @@ def admin_mails():
             hay = ' '.join((b, meta['subject'], meta['from'], meta['to'])).lower()
             hit = needle in hay
             if not hit and body:
-                if body_scanned >= MAIL_BODY_SCAN_MAX:
+                cached = _text_cache.get((md, key))
+                if cached is not None and cached[0] == mt:
+                    hit = needle in cached[1]   # 已缓存(预读过)的不计入扫描上限
+                elif body_scanned >= MAIL_BODY_SCAN_MAX:
                     body_truncated = True
                 else:
                     body_scanned += 1
-                    hit = needle in _mail_body_text(os.path.join(md, sub, key))
+                    hit = needle in mail_text(md, key, mt)
             if not hit:
                 continue
         matched.append((b, md, key, mt, meta))
@@ -1868,15 +2063,17 @@ def admin_stats():
 
 # ---------- 启动预读 ----------
 
-PREWARM_DAYS = 7   # 除邮件头外,最近这么多天的邮件还预先提取验证码(统计页要用)
-
-
 def prewarm_mail_cache():
-    """后台把全部邮件头读进缓存,首次打开邮件管理/统计页不用现读上千个文件。
+    """后台把全部邮件头、验证码和正文文本读进缓存,首次打开邮件管理/统计页、
+    全文搜索都不用现读上千个文件。
     直接遍历 MAILBOX_ROOT,不依赖管理员凭据;出错只影响缓存,不影响服务。"""
     t0 = time.time()
     n = 0
-    since = t0 - PREWARM_DAYS * 86400
+    try:
+        # Linux 上 nice 值按线程生效:预读线程降为低优先级,不和请求抢 CPU
+        os.setpriority(os.PRIO_PROCESS, threading.get_native_id(), 15)
+    except (AttributeError, OSError):
+        pass
     try:
         for domain in sorted(os.listdir(MAILBOX_ROOT)):
             ddir = os.path.join(MAILBOX_ROOT, domain)
@@ -1888,8 +2085,7 @@ def prewarm_mail_cache():
                     continue
                 for key, mt, sub in list_messages_sub(md):
                     _mail_meta(md, key, sub, mt)
-                    if mt >= since:
-                        _entry_for(md, key, mt)
+                    _entry_for(md, key, mt)   # 顺带缓存验证码和全文搜索文本
                     n += 1
     except Exception as e:  # noqa: BLE001 —— 预读失败不能拖垮 worker
         app.logger.warning('prewarm failed: %s', e)

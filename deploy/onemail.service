@@ -5,7 +5,9 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/onemail
-ExecStart=/opt/onemail/venv/bin/gunicorn -w 2 -b 127.0.0.1:8200 app:app
+# 1 个进程 + 8 个线程:邮件缓存/预读只需一份(省一半内存和启动 CPU,适合 1 核小机器);
+# 线程保证慢请求(全文搜索、MIAB 接口)不会卡住取件页每 2 秒一次的轮询
+ExecStart=/opt/onemail/venv/bin/gunicorn -w 1 -k gthread --threads 8 -b 127.0.0.1:8200 app:app
 Restart=always
 RestartSec=3
 # maildir 目录(/home/user-data/mail/mailboxes/<域>/)是 MIAB 管的 drwx------ mail:mail,

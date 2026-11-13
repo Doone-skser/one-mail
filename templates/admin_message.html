@@ -2,11 +2,11 @@
 {% block container_class %}max-w-5xl{% endblock %}
 {% block title %}{{ subject }}{% endblock %}
 {% block content %}
-{% from "_icons.html" import icon %}
 <div class="flex items-center gap-2 flex-wrap">
   <a class="button button--sm button--ghost -ml-2 text-muted" href="{{ back }}">{{ icon('arrow-left') }}返回邮件列表</a>
   <form method="post" action="/admin/mails/delete" class="ml-auto"
-        onsubmit="return confirm('将从服务器上永久删除这封邮件,无法恢复,确定?')">
+        data-title="删除邮件" data-ok="删除" data-danger
+        data-confirm="将从服务器上永久删除这封邮件,无法恢复。">
     <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
     <input type="hidden" name="next" value="{{ back }}">
     <input type="hidden" name="item" value="{{ box }}|{{ key }}">
@@ -39,6 +39,7 @@
     <dt class="text-muted">所属邮箱</dt>
     <dd class="flex items-center gap-2 flex-wrap">
       <a class="font-mono hover:underline underline-offset-4 break-all" href="{{ url_for('admin_mails', box=box) }}">{{ box }}</a>
+      {% if mailbox_created(box) %}<span class="text-xs text-muted">创建于 {{ mailbox_created(box) }}</span>{% endif %}
       {% if note %}<span class="text-xs font-medium text-accent-soft-foreground bg-accent-soft rounded-lg px-2 py-0.5 wrap-anywhere">{{ note }}</span>{% endif %}
     </dd>
     <dt class="text-muted">发件人</dt><dd class="break-all">{{ from_addr }}</dd>

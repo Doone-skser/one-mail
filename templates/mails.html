@@ -1,7 +1,6 @@
 {% extends "admin_base.html" %}
 {% block title %}邮件管理{% endblock %}
 {% block content %}
-{% from "_icons.html" import icon %}
 {% include "_toast.html" %}
 {% set here = request.full_path.rstrip('?') %}
 
@@ -9,6 +8,9 @@
   <div class="flex items-center gap-2 flex-wrap">
     <h1 class="text-lg font-semibold">邮件管理</h1>
     <span class="text-sm text-muted">{{ boxes | length }} 个邮箱 · {{ total_all }} 封邮件</span>
+    {% if box and mailbox_created(box) %}
+    <span class="chip chip--default ml-auto" title="当前筛选邮箱的创建时间">{{ icon('plus-circle', 'size-3') }}<span class="chip__label">{{ box }} 创建于 {{ mailbox_created(box) }}</span></span>
+    {% endif %}
   </div>
   <div class="flex gap-2.5 items-center flex-wrap mt-1">
     <label class="search flex-1 min-w-56">
@@ -156,16 +158,23 @@
     if (e.target.classList.contains('mail-check')) sync();
   });
   form.addEventListener('submit', function (e) {
+    e.preventDefault();
     var n = form.querySelectorAll('.mail-check:checked').length;
-    if (!n || !confirm('将从服务器上永久删除选中的 ' + n + ' 封邮件,无法恢复,确定?')) e.preventDefault();
+    if (!n) return;
+    uiConfirm('将从服务器上永久删除选中的 ' + n + ' 封邮件,无法恢复。',
+              { title: '删除邮件', ok: '删除 ' + n + ' 封', danger: true })
+      .then(function (yes) { if (yes) form.submit(); });
   });
   var single = document.getElementById('single-del-form');
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.single-del');
     if (!btn) return;
-    if (!confirm('将从服务器上永久删除这封邮件,无法恢复,确定?')) return;
-    single.querySelector('input[name=item]').value = btn.getAttribute('data-item');
-    single.submit();
+    uiConfirm('将从服务器上永久删除这封邮件,无法恢复。', { title: '删除邮件', ok: '删除', danger: true })
+      .then(function (yes) {
+        if (!yes) return;
+        single.querySelector('input[name=item]').value = btn.getAttribute('data-item');
+        single.submit();
+      });
   });
   sync();
 })();

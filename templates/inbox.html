@@ -1,7 +1,6 @@
 {% extends "pickup_base.html" %}
 {% block title %}{% if view == 'all' %}全部邮件{% else %}验证码邮件{% endif %} - {{ email }}{% endblock %}
 {% block content %}
-{% from "_icons.html" import icon %}
 <section class="card card--default">
   <div class="card__content gap-4">
     <div class="flex flex-wrap items-center gap-3">

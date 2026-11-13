@@ -1,7 +1,6 @@
 {% extends "admin_base.html" %}
 {% block title %}邮箱列表{% endblock %}
 {% block content %}
-{% from "_icons.html" import icon %}
 {% include "_toast.html" %}
 
 {% if new_url %}
@@ -74,7 +73,8 @@
     <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
     <input type="hidden" name="next" value="/admin/">
     <button class="button button--tertiary" type="submit" title="彻底删除全部已撤销链接"
-            onclick="return confirm('将彻底删除全部 {{ revoked_count }} 条已撤销链接及其访问记录,确定?')">{{ icon('trash') }}清除已撤销({{ revoked_count }})</button>
+            data-title="清除已撤销链接" data-ok="全部清除" data-danger
+            data-confirm="将彻底删除全部 {{ revoked_count }} 条已撤销链接及其访问记录,此操作无法恢复。">{{ icon('trash') }}清除已撤销({{ revoked_count }})</button>
   </form>
   {% endif %}
 </div>
@@ -204,6 +204,11 @@
                   aria-label="{{ '编辑备注' if notes.get(b) else '添加备注' }}">{{ icon('pencil') }}</button>
         </form>
       </div>
+      {% set bc = mailbox_created(b) %}
+      {% if bc %}
+      <div class="flex items-center gap-1 mt-0.5 text-xs text-muted" title="邮箱在服务器上的创建时间">
+        {{ icon('plus-circle', 'size-3.5') }}邮箱创建于 {{ bc }}</div>
+      {% endif %}
 
       <div class="row-list mt-1">
         {% for l in links %}
@@ -250,7 +255,8 @@
               <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
               <input type="hidden" name="next" value="/admin/">
               <button class="button button--sm button--danger-soft button--icon-only" type="submit" title="删除" aria-label="删除链接"
-                      onclick="return confirm('删除后该 URL 永久失效,访问记录也会一并清除,确定删除?')">{{ icon('trash') }}</button>
+                      data-title="删除取件链接" data-ok="删除" data-danger
+                      data-confirm="删除后该 URL 永久失效,访问记录也会一并清除。">{{ icon('trash') }}</button>
             </form>
           </div>
         </div>
@@ -399,14 +405,24 @@
         if (f) f.focus();
       });
     }
-    // 备注编辑:prompt 输入,留空即清除
+    // 备注编辑:弹窗输入,留空即清除;确认后带标记重新提交(走下方 fetch 局部刷新)
     var noteForms = document.querySelectorAll('.note-form');
     for (var j = 0; j < noteForms.length; j++) {
       noteForms[j].addEventListener('submit', function (e) {
-        var field = this.querySelector('input[name=note]');
-        var v = prompt('备注(留空清除,最多 200 字):', field.value);
-        if (v === null) { e.preventDefault(); return; }
-        field.value = v;
+        var form = this;
+        if (form.dataset.noteOk) { delete form.dataset.noteOk; return; }
+        e.preventDefault();
+        var field = form.querySelector('input[name=note]');
+        var email = form.querySelector('input[name=email]').value;
+        uiPrompt('留空则清除备注,最多 200 字', field.value,
+                 { title: '编辑备注 · ' + email, ok: '保存', maxlength: 200,
+                   placeholder: '如用途、归属人' })
+          .then(function (v) {
+            if (v === null) return;
+            field.value = v;
+            form.dataset.noteOk = '1';
+            form.requestSubmit();
+          });
       });
     }
     bindModal('new-link-btn', 'new-link-modal', 'select[name=email]');
@@ -448,14 +464,14 @@
           } else if (res.ok) {
             location.href = res.url;  // 会话失效被跳到登录页等
           } else {
-            alert('操作失败(HTTP ' + res.status + '),页面将刷新');
-            location.reload();
+            uiAlert('服务器返回 HTTP ' + res.status + ',页面将刷新。', { title: '操作失败' })
+              .then(function () { location.reload(); });
           }
         });
       })
       .catch(function () {
-        alert('网络异常,操作结果未知,页面将刷新');
-        location.reload();
+        uiAlert('网络异常,操作结果未知,页面将刷新。', { title: '网络异常' })
+          .then(function () { location.reload(); });
       })
       .then(function () { busy = false; });
   });

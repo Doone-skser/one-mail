@@ -7,7 +7,7 @@
 /* source(none):只扫描下面列出的取件页模板,不把管理端用到的类也编进来 */
 @import "tailwindcss" source(none);
 @source "../templates/pickup_base.html";
-@source "../templates/_icons.html";
+@source "../app.py";   /* 图标 SVG 的类名在 app.py 的 icon() 里 */
 @source "../templates/inbox.html";
 @source "../templates/message.html";
 @source "../templates/invalid.html";

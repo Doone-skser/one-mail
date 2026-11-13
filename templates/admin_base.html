@@ -1,7 +1,6 @@
 {# 管理端布局:左侧栏(≥lg) + 顶栏;窄屏侧栏隐藏,导航放到顶栏 #}
 {% extends "base.html" %}
 {% block body %}
-{% from "_icons.html" import icon %}
 {% set p = request.path %}
 {% set nav = [
   ('/admin/', 'list', '邮箱列表', p == '/admin/' or p.startswith('/admin/mailboxes')),
