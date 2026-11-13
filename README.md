@@ -38,6 +38,7 @@ OneMail 运行在 [Mail-in-a-Box](https://mailinabox.email/)(MIAB)服务器上:�
 - **添加邮箱**:自动生成随机英文姓名并可点击刷新,输入停止 1 秒后检查邮箱是否已存在;默认创建永久取件链接,密码可留空自动生成
 - **邮箱备注**与实时搜索
 - **访问日志**:每条链接的访问时间、IP、User-Agent
+- **邮件管理**(`/admin/mails`):跨服务器上全部邮箱搜索邮件(主题 / 发件人 / 收件人,可勾选同时搜正文),可按邮箱筛选、只看未读;列表直接显示验证码,支持查看邮件详情、下载附件、单封或批量删除(直接删 Maildir 文件,不可恢复)
 
 ## 快速部署
 
@@ -95,6 +96,7 @@ systemctl restart onemail
 | `MIAB_ADD_API` | `https://127.0.0.1/admin/mail/users/add` | 添加邮箱的 API |
 | `MASKED_MAILBOXES` | `{"masked@example.com"}` | 在失效提示页上打码显示的邮箱(如 `ma**@example.com`);链接有效时始终显示完整地址 |
 | `PER_PAGE` | `20` | 收件箱每页封数 |
+| `MAIL_BODY_SCAN_MAX` | `3000` | 邮件管理勾选「搜索正文」时最多扫描最新多少封的正文 |
 | `TTL_CHOICES` | 1 / 7 / 30 天、永久 | 生成和延期链接时的有效期选项 |
 | `USERS_CACHE_SEC` | `300` | 邮箱列表缓存秒数 |
 | `LOG_THROTTLE_SEC` | `60` | 同一链接的访问日志节流秒数 |
@@ -109,7 +111,7 @@ systemctl restart onemail
 
 - token 为 192 位随机数;无效 token 按 IP 计数,1 分钟超过 20 次返回 429
 - 链接可设有效期、可随时撤销,每次访问都有日志
-- 只读:邮件直接从 Maildir 文件读取,不经过 dovecot,不做任何写操作
+- 只读:邮件直接从 Maildir 文件读取,不经过 dovecot,取件页不做任何写操作(删除邮件只有管理端「邮件管理」能做,并记入 `security.log` 的 `MAIL_DELETE` 行)
 
 **邮件渲染**
 
@@ -173,6 +175,8 @@ one-mail/
 │   ├── login.html          # 管理员登录
 │   ├── admin.html          # 管理端首页
 │   ├── links.html          # 链接汇总
+│   ├── mails.html          # 邮件管理:全部邮件搜索/删除
+│   ├── admin_message.html  # 邮件管理:邮件详情
 │   ├── link_detail.html    # 单条链接的访问日志
 │   ├── _icons.html         # 图标(Lucide)
 │   └── _toast.html         # 操作结果提示

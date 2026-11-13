@@ -1,0 +1,170 @@
+{% extends "admin_base.html" %}
+{% block title %}邮件管理{% endblock %}
+{% block content %}
+{% from "_icons.html" import icon %}
+{% include "_toast.html" %}
+{% set here = request.full_path.rstrip('?') %}
+
+<form method="get" action="/admin/mails" class="card bg-base-100 shadow-sm" role="search">
+  <div class="flex items-center gap-2 flex-wrap px-5 py-3.5 bg-base-200 border-b border-base-content/10">
+    <h1 class="text-lg font-semibold">邮件管理</h1>
+    <span class="text-sm text-base-content/50">{{ boxes | length }} 个邮箱 · {{ total_all }} 封邮件</span>
+  </div>
+  <div class="flex gap-2.5 items-center flex-wrap px-5 py-4">
+    <label class="input flex-1 min-w-56">
+      {{ icon('search', 'size-4 opacity-50') }}
+      <input type="search" name="q" value="{{ q }}" placeholder="搜索主题、发件人、收件人…"
+             aria-label="搜索邮件" class="grow" autofocus>
+    </label>
+    <select name="box" class="select w-auto max-w-full sm:max-w-72" aria-label="按邮箱筛选">
+      <option value="">全部邮箱</option>
+      {% for b in boxes %}
+      <option value="{{ b }}"{% if b == box %} selected{% endif %}>{{ b }}{% if notes.get(b) %}({{ notes[b] }}){% endif %} · {{ box_counts.get(b, 0) }}</option>
+      {% endfor %}
+    </select>
+    <label class="label cursor-pointer gap-1.5 text-sm text-base-content/70 select-none">
+      <input type="checkbox" name="body" value="1" class="checkbox checkbox-sm"{% if body %} checked{% endif %}>搜索正文
+    </label>
+    <label class="label cursor-pointer gap-1.5 text-sm text-base-content/70 select-none">
+      <input type="checkbox" name="unread" value="1" class="checkbox checkbox-sm"{% if unread_only %} checked{% endif %}>仅未读
+    </label>
+    <button class="btn btn-primary" type="submit">{{ icon('search') }}搜索</button>
+    {% if base_args %}<a class="btn btn-ghost" href="/admin/mails">重置</a>{% endif %}
+  </div>
+</form>
+
+{% if body_truncated %}
+<div role="alert" class="alert alert-warning alert-soft text-sm mt-4">
+  全文搜索只扫描了最新的 {{ body_scan_max }} 封邮件的正文,更早的邮件只匹配了主题/发件人/收件人。可先按邮箱筛选缩小范围。
+</div>
+{% endif %}
+
+<form method="post" action="/admin/mails/delete" id="bulk-form" class="card bg-base-100 shadow-sm mt-4 overflow-hidden">
+  <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+  <input type="hidden" name="next" value="{{ here }}">
+  <div class="flex items-center gap-3 flex-wrap px-5 py-2.5 border-b border-base-content/10 text-sm">
+    {% if mails %}
+    <label class="label cursor-pointer gap-2 select-none">
+      <input type="checkbox" id="select-all" class="checkbox checkbox-sm" aria-label="全选本页">本页全选
+    </label>
+    {% endif %}
+    <span class="text-base-content/60">
+      {% if q or box or unread_only %}找到 {{ total }} 封{% else %}共 {{ total }} 封{% endif %}
+      <span class="text-base-content/40">· {{ elapsed }} ms</span>
+    </span>
+    {% if mails %}
+    <button class="btn btn-sm btn-error btn-soft ml-auto" type="submit" id="bulk-delete" disabled>
+      {{ icon('trash', 'size-3.5') }}删除选中<span id="sel-count"></span></button>
+    {% endif %}
+  </div>
+
+  {% if mails %}
+  <ul class="row-list">
+    {% for m in mails %}
+    {% set view_url = url_for('admin_mail_view', box=m.box, key=m.key, back=here) %}
+    <li class="flex gap-3 px-5 py-3 hover:bg-base-content/[.025] transition-colors">
+      <input type="checkbox" name="item" value="{{ m.box }}|{{ m.key }}"
+             class="mail-check checkbox checkbox-sm mt-0.5" aria-label="选择这封邮件">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 min-w-0">
+          {% if m.unread %}<span class="size-2 shrink-0 rounded-full bg-primary" title="未读" aria-label="未读"></span>{% endif %}
+          <a class="min-w-0 truncate link link-hover {{ 'font-semibold' if m.unread else 'font-medium' }}"
+             href="{{ view_url }}" title="{{ m.subject }}">{{ m.subject }}</a>
+          <span class="ml-auto shrink-0 text-xs tabular-nums text-base-content/55">{{ m.date }}</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-base-content/60">
+          <span class="min-w-0 break-all">{{ m.from or '(无发件人)' }}</span>
+          <a class="badge badge-sm border-0 bg-base-content/10 text-base-content/70 hover:bg-primary/15 hover:text-primary"
+             href="{{ url_for('admin_mails', box=m.box, q=q or None, body='1' if body else None, unread='1' if unread_only else None) }}"
+             title="只看这个邮箱">{{ icon('mail', 'size-3') }}{{ m.box }}</a>
+          {% if notes.get(m.box) %}<span class="text-secondary wrap-anywhere">{{ notes[m.box] }}</span>{% endif %}
+        </div>
+        {% if m.code or m.magic_link %}
+        <div class="flex flex-wrap items-center gap-2 mt-2">
+          {% if m.code %}
+          <span class="font-mono font-semibold tracking-widest text-sm bg-primary/10 text-primary rounded-md px-2 py-0.5">{{ m.code }}</span>
+          <button class="btn btn-xs copy-btn" type="button" data-code="{{ m.code }}">{{ icon('copy', 'size-3') }}复制验证码</button>
+          {% endif %}
+          {% if m.magic_link %}
+          <button class="btn btn-xs copy-btn" type="button" data-code="{{ m.magic_link }}">{{ icon('copy', 'size-3') }}复制登录链接</button>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="flex flex-col sm:flex-row gap-1.5 shrink-0 items-end sm:items-start">
+        <a class="btn btn-sm" href="{{ view_url }}">{{ icon('eye', 'size-3.5') }}<span class="max-sm:hidden">查看</span></a>
+        <button class="btn btn-sm btn-error btn-soft single-del" type="button"
+                data-item="{{ m.box }}|{{ m.key }}" aria-label="删除">{{ icon('trash', 'size-3.5') }}<span class="max-sm:hidden">删除</span></button>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-sm text-base-content/60 py-12 text-center">
+    {% if q or box or unread_only %}没有匹配的邮件,换个关键词试试。{% else %}还没有任何邮件{% endif %}
+  </p>
+  {% endif %}
+</form>
+
+{% if pages > 1 %}
+<nav class="flex justify-center mt-4" aria-label="分页">
+  <div class="join">
+    {% if page > 1 %}
+    <a class="join-item btn btn-sm" href="{{ url_for('admin_mails', page=1, **base_args) }}">«</a>
+    <a class="join-item btn btn-sm" href="{{ url_for('admin_mails', page=page - 1, **base_args) }}">上一页</a>
+    {% endif %}
+    <span class="join-item btn btn-sm pointer-events-none tabular-nums">{{ page }} / {{ pages }}</span>
+    {% if page < pages %}
+    <a class="join-item btn btn-sm" href="{{ url_for('admin_mails', page=page + 1, **base_args) }}">下一页</a>
+    <a class="join-item btn btn-sm" href="{{ url_for('admin_mails', page=pages, **base_args) }}">»</a>
+    {% endif %}
+  </div>
+</nav>
+{% endif %}
+
+{# 单封删除:独立表单,避免带上批量勾选项 #}
+<form method="post" action="/admin/mails/delete" id="single-del-form" class="hidden">
+  <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+  <input type="hidden" name="next" value="{{ here }}">
+  <input type="hidden" name="item" value="">
+</form>
+
+<script>
+(function () {
+  var form = document.getElementById('bulk-form');
+  var all = document.getElementById('select-all');
+  var del = document.getElementById('bulk-delete');
+  var cnt = document.getElementById('sel-count');
+  var checks = form.querySelectorAll('.mail-check');
+  function sync() {
+    var n = form.querySelectorAll('.mail-check:checked').length;
+    if (del) del.disabled = n === 0;
+    if (cnt) cnt.textContent = n ? '(' + n + ')' : '';
+    if (all) {
+      all.checked = n > 0 && n === checks.length;
+      all.indeterminate = n > 0 && n < checks.length;
+    }
+  }
+  if (all) all.addEventListener('change', function () {
+    for (var i = 0; i < checks.length; i++) checks[i].checked = all.checked;
+    sync();
+  });
+  form.addEventListener('change', function (e) {
+    if (e.target.classList.contains('mail-check')) sync();
+  });
+  form.addEventListener('submit', function (e) {
+    var n = form.querySelectorAll('.mail-check:checked').length;
+    if (!n || !confirm('将从服务器上永久删除选中的 ' + n + ' 封邮件,无法恢复,确定?')) e.preventDefault();
+  });
+  var single = document.getElementById('single-del-form');
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.single-del');
+    if (!btn) return;
+    if (!confirm('将从服务器上永久删除这封邮件,无法恢复,确定?')) return;
+    single.querySelector('input[name=item]').value = btn.getAttribute('data-item');
+    single.submit();
+  });
+  sync();
+})();
+</script>
+{% endblock %}

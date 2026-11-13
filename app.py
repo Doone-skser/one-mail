@@ -1438,6 +1438,337 @@ def admin_link_detail(lid):
     return render_template('link_detail.html', link=lv, logs=log_list)
 
 
+# ---------- 管理端:全部邮件搜索与管理 ----------
+
+MAIL_HEADER_MAX = 65536       # 列表/搜索只读邮件头,最多读文件前 64KB
+MAIL_BODY_SCAN_MAX = 3000     # 全文搜索最多扫描最新的这么多封(逐封解析正文,较慢)
+MAIL_BULK_MAX = 200           # 批量删除单次上限
+# 邮件头缓存:(maildir, key) -> (mtime, meta);搜索每次都要遍历全部邮件,
+# 靠 mtime 命中缓存避免反复读文件
+_meta_cache = {}
+
+
+def mail_flags(key):
+    """Maildir 文件名里 ':2,' 之后的标志位,如 'S'(已读)、'F'(星标)。"""
+    _, sep, flags = key.rpartition(':2,')
+    return flags if sep else ''
+
+
+def _mail_meta(maildir, key, sub, mt):
+    """读邮件头,返回 {subject, from, to, date, ts, unread}(带缓存)。"""
+    ck = (maildir, key)
+    ent = _meta_cache.get(ck)
+    if ent is not None and ent[0] == mt:
+        return ent[1]
+    try:
+        with open(os.path.join(maildir, sub, key), 'rb') as f:
+            raw = f.read(MAIL_HEADER_MAX)
+    except OSError:
+        return None
+    # 只解析头部:截到第一个空行,省掉大附件的解析开销
+    for sep in (b'\r\n\r\n', b'\n\n'):
+        idx = raw.find(sep)
+        if idx >= 0:
+            raw = raw[:idx + len(sep)]
+            break
+    try:
+        msg = BytesParser(policy=policy.default).parsebytes(raw, headersonly=True)
+        dt = msg_date(msg, mt)
+        meta = {
+            'subject': hdr(msg, 'Subject') or '(无主题)',
+            'from': hdr(msg, 'From'),
+            'to': hdr(msg, 'To'),
+            'date': dt.strftime('%Y-%m-%d %H:%M'),
+            'unread': sub == 'new' or 'S' not in mail_flags(key),
+        }
+    except Exception:
+        meta = {'subject': '(无法解析)', 'from': '', 'to': '', 'unread': False,
+                'date': datetime.fromtimestamp(mt, TZ).strftime('%Y-%m-%d %H:%M')}
+    if len(_meta_cache) > 50000:
+        _meta_cache.clear()
+    _meta_cache[ck] = (mt, meta)
+    return meta
+
+
+def list_messages_sub(maildir):
+    """同 list_messages,但额外返回所在子目录:[(key, mtime, sub)],最新在前。"""
+    entries = []
+    for sub in ('cur', 'new'):
+        d = os.path.join(maildir, sub)
+        try:
+            names = os.listdir(d)
+        except OSError:
+            continue
+        for name in names:
+            if name.startswith('.'):
+                continue
+            try:
+                mt = os.path.getmtime(os.path.join(d, name))
+            except OSError:
+                continue
+            entries.append((name, mt, sub))
+    entries.sort(key=lambda e: e[1], reverse=True)
+    return entries
+
+
+def _valid_key(key):
+    return bool(key) and '/' not in key and '\\' not in key \
+        and not key.startswith('.') and '\x00' not in key
+
+
+def find_message_file(maildir, key):
+    """按 key 找邮件文件的完整路径。dovecot 改标志位(如标记已读)会重命名文件
+    并可能从 new 挪到 cur,所以精确匹配不到时按唯一名(':2,' 之前)再找一次。"""
+    if not _valid_key(key):
+        return None
+    for sub in ('cur', 'new'):
+        p = os.path.join(maildir, sub, key)
+        if os.path.isfile(p):
+            return p
+    base = key.split(':2,', 1)[0]
+    for sub in ('cur', 'new'):
+        d = os.path.join(maildir, sub)
+        try:
+            names = os.listdir(d)
+        except OSError:
+            continue
+        for name in names:
+            if name.split(':2,', 1)[0] == base and _valid_key(name):
+                p = os.path.join(d, name)
+                if os.path.isfile(p):
+                    return p
+    return None
+
+
+def _admin_boxes():
+    """已登录管理员可见的全部邮箱列表;会话失效返回 None。"""
+    creds = get_admin_creds()
+    if creds is None:
+        return None
+    return miab_users(*creds)
+
+
+def _admin_maildir(boxes, box):
+    """只接受 MIAB 邮箱列表里的地址,防止任意路径;返回 maildir 或 abort。"""
+    if not box or box not in boxes:
+        abort(404)
+    md = maildir_path(box)
+    if md is None:
+        abort(404)
+    return md
+
+
+def _mail_body_text(path):
+    """读整封邮件,返回用于全文搜索的小写纯文本(主题+正文前 CODE_SCAN_MAX 字符)。"""
+    try:
+        with open(path, 'rb') as f:
+            msg = BytesParser(policy=policy.default).parse(f)
+        text_body, html_body, _ = extract_parts(msg)
+        return (msg_plain_text(msg, text_body, html_body) or '')[:CODE_SCAN_MAX].lower()
+    except Exception:
+        return ''
+
+
+@app.route('/admin/mails')
+def admin_mails():
+    """跨所有邮箱搜索邮件。q 匹配主题/发件人/收件人/所属邮箱;body=1 时同时搜正文。"""
+    r = admin_required()
+    if r:
+        return r
+    boxes = _admin_boxes()
+    if boxes is None:
+        session.clear()
+        return redirect(url_for('admin_login'))
+    q = request.args.get('q', '').strip()[:200]
+    box = request.args.get('box', '').strip()
+    if box and box not in boxes:
+        box = ''
+    body = request.args.get('body') == '1'
+    unread_only = request.args.get('unread') == '1'
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+    except ValueError:
+        page = 1
+
+    t0 = time.time()
+    # 汇总全部(或所选)邮箱的邮件,统一按时间倒序
+    entries = []
+    box_counts = {}
+    for b in boxes:
+        md = maildir_path(b)
+        if md is None:
+            box_counts[b] = 0
+            continue
+        lst = list_messages_sub(md)
+        box_counts[b] = len(lst)
+        if box and b != box:
+            continue
+        entries.extend((b, md, key, mt, sub) for key, mt, sub in lst)
+    entries.sort(key=lambda e: e[3], reverse=True)
+    total_all = sum(box_counts.values())
+
+    needle = q.lower()
+    body_truncated = False
+    matched = []
+    body_scanned = 0
+    for b, md, key, mt, sub in entries:
+        meta = _mail_meta(md, key, sub, mt)
+        if meta is None:
+            continue
+        if unread_only and not meta['unread']:
+            continue
+        if needle:
+            hay = ' '.join((b, meta['subject'], meta['from'], meta['to'])).lower()
+            hit = needle in hay
+            if not hit and body:
+                if body_scanned >= MAIL_BODY_SCAN_MAX:
+                    body_truncated = True
+                else:
+                    body_scanned += 1
+                    hit = needle in _mail_body_text(os.path.join(md, sub, key))
+            if not hit:
+                continue
+        matched.append((b, md, key, mt, meta))
+
+    total = len(matched)
+    pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = min(page, pages)
+    mails = []
+    for b, md, key, mt, meta in matched[(page - 1) * PER_PAGE: page * PER_PAGE]:
+        cached = _entry_for(md, key, mt)  # 验证码/登录链接(带缓存)
+        mails.append(dict(meta, box=b, key=key,
+                          code=cached['code'] if cached else None,
+                          magic_link=cached['magic_link'] if cached else None))
+    elapsed = int((time.time() - t0) * 1000)
+    # 分页/返回链接复用的查询参数
+    base_args = {k: v for k, v in (('q', q), ('box', box),
+                                     ('body', '1' if body else ''),
+                                     ('unread', '1' if unread_only else '')) if v}
+    return render_template(
+        'mails.html', mails=mails, q=q, box=box, body=body, unread_only=unread_only,
+        page=page, pages=pages, total=total, total_all=total_all,
+        boxes=boxes, box_counts=box_counts, notes=get_notes(),
+        base_args=base_args, elapsed=elapsed, body_truncated=body_truncated,
+        body_scan_max=MAIL_BODY_SCAN_MAX,
+        flash_msg=session.pop('flash_msg', None),
+        flash_err=session.pop('flash_err', None))
+
+
+def _safe_mails_back(value):
+    return value if value and value.startswith('/admin/mails') else url_for('admin_mails')
+
+
+@app.route('/admin/mails/view')
+def admin_mail_view():
+    """管理端查看任意邮箱里的一封邮件(远端图片默认屏蔽,同取件页)。"""
+    r = admin_required()
+    if r:
+        return r
+    boxes = _admin_boxes()
+    if boxes is None:
+        return redirect(url_for('admin_login'))
+    box = request.args.get('box', '')
+    key = request.args.get('key', '')
+    md = _admin_maildir(boxes, box)
+    path = find_message_file(md, key)
+    if path is None:
+        abort(404)
+    key = os.path.basename(path)
+    with open(path, 'rb') as f:
+        msg = BytesParser(policy=policy.default).parse(f)
+    text_body, html_body, atts = extract_parts(msg)
+    code = extract_code(hdr(msg, 'Subject'), msg_plain_text(msg, text_body, html_body))
+    from_addr = hdr(msg, 'From')
+    magic_link = extract_anthropic_magic_link(from_addr, text_body, html_body)
+    remote = request.args.get('remote') == '1'
+    g.allow_remote_img = remote
+    if html_body and not remote:
+        html_body = strip_remote_resources(html_body)
+    back = _safe_mails_back(request.args.get('back', ''))
+    return render_template(
+        'admin_message.html', box=box, key=key, back=back,
+        subject=hdr(msg, 'Subject') or '(无主题)',
+        from_addr=from_addr, to_addr=hdr(msg, 'To'), cc_addr=hdr(msg, 'Cc'),
+        date=msg_date(msg, os.path.getmtime(path)).strftime('%Y-%m-%d %H:%M:%S'),
+        size=os.path.getsize(path), code=code, magic_link=magic_link,
+        remote=remote, text_body=text_body, html_body=html_body, atts=atts,
+        note=get_notes().get(box, ''))
+
+
+@app.route('/admin/mails/att')
+def admin_mail_attachment():
+    r = admin_required()
+    if r:
+        return r
+    boxes = _admin_boxes()
+    if boxes is None:
+        return redirect(url_for('admin_login'))
+    md = _admin_maildir(boxes, request.args.get('box', ''))
+    path = find_message_file(md, request.args.get('key', ''))
+    if path is None:
+        abort(404)
+    try:
+        idx = int(request.args.get('idx', -1))
+    except ValueError:
+        abort(400)
+    with open(path, 'rb') as f:
+        msg = BytesParser(policy=policy.default).parse(f)
+    atts = []
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.is_multipart():
+                continue
+            disp = part.get_content_disposition()
+            if disp == 'attachment' or (disp is None and part.get_filename()):
+                atts.append(part)
+    if idx < 0 or idx >= len(atts):
+        abort(404)
+    part = atts[idx]
+    fn = part.get_filename() or 'attachment'
+    return Response(part.get_payload(decode=True) or b'',
+                    mimetype='application/octet-stream', headers={
+                        'Content-Disposition': "attachment; filename*=utf-8''%s"
+                        % urllib.parse.quote(fn)})
+
+
+@app.route('/admin/mails/delete', methods=['POST'])
+def admin_mail_delete():
+    """删除邮件(直接删 Maildir 文件,不可恢复)。item 可多值,格式 '<邮箱>|<key>'。
+    dovecot 下次同步时会发现文件消失并更新索引,无需额外处理。"""
+    r = admin_required()
+    if r:
+        return r
+    boxes = _admin_boxes()
+    if boxes is None:
+        return redirect(url_for('admin_login'))
+    items = request.form.getlist('item')[:MAIL_BULK_MAX]
+    deleted = failed = 0
+    for item in items:
+        box, sep, key = item.partition('|')
+        if not sep or box not in boxes:
+            failed += 1
+            continue
+        md = maildir_path(box)
+        path = find_message_file(md, key) if md else None
+        if path is None:
+            failed += 1
+            continue
+        try:
+            os.remove(path)
+            deleted += 1
+            _meta_cache.pop((md, os.path.basename(path)), None)
+        except OSError:
+            failed += 1
+    if deleted:
+        _sec_log.info('MAIL_DELETE admin=%s count=%d',
+                      log_safe(session.get('admin')), deleted)
+        session['flash_msg'] = '已删除 %d 封邮件' % deleted + (
+            ',%d 封未找到或删除失败' % failed if failed else '')
+    else:
+        session['flash_err'] = '没有删除任何邮件(未选中或邮件已不存在)'
+    return redirect(_safe_mails_back(request.form.get('next', '')))
+
+
 if __name__ == '__main__':
     # 仅供本地调试;生产用 gunicorn(见 deploy/onemail.service)
     app.run(host=DEV_HOST, port=DEV_PORT)

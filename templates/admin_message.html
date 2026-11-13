@@ -1,0 +1,103 @@
+{% extends "admin_base.html" %}
+{% block container_class %}max-w-5xl{% endblock %}
+{% block title %}{{ subject }}{% endblock %}
+{% block content %}
+{% from "_icons.html" import icon %}
+<div class="flex items-center gap-2 flex-wrap">
+  <a class="btn btn-ghost btn-sm -ml-2" href="{{ back }}">← 返回邮件列表</a>
+  <form method="post" action="/admin/mails/delete" class="ml-auto"
+        onsubmit="return confirm('将从服务器上永久删除这封邮件,无法恢复,确定?')">
+    <input type="hidden" name="csrf" value="{{ session['csrf'] }}">
+    <input type="hidden" name="next" value="{{ back }}">
+    <input type="hidden" name="item" value="{{ box }}|{{ key }}">
+    <button class="btn btn-sm btn-error btn-soft" type="submit">{{ icon('trash', 'size-3.5') }}删除邮件</button>
+  </form>
+</div>
+
+<div class="card bg-base-100 shadow-sm mt-3">
+  <div class="card-body gap-3">
+    <h1 class="text-xl font-semibold wrap-anywhere">{{ subject }}</h1>
+    <dl class="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-sm">
+      <dt class="text-base-content/60">所属邮箱</dt>
+      <dd class="flex items-center gap-2 flex-wrap">
+        <a class="font-mono link link-hover break-all" href="{{ url_for('admin_mails', box=box) }}">{{ box }}</a>
+        {% if note %}<span class="text-secondary wrap-anywhere">{{ note }}</span>{% endif %}
+      </dd>
+      <dt class="text-base-content/60">发件人</dt><dd class="break-all">{{ from_addr }}</dd>
+      <dt class="text-base-content/60">收件人</dt><dd class="break-all">{{ to_addr }}</dd>
+      {% if cc_addr %}<dt class="text-base-content/60">抄送</dt><dd class="break-all">{{ cc_addr }}</dd>{% endif %}
+      <dt class="text-base-content/60">日期</dt><dd class="tabular-nums">{{ date }}</dd>
+      <dt class="text-base-content/60">大小</dt><dd class="tabular-nums">{{ size | fmt_size }}</dd>
+    </dl>
+    {% if code or magic_link %}
+    <div class="flex flex-wrap items-center gap-2 pt-1">
+      {% if code %}
+      <span class="code-big text-primary">{{ code }}</span>
+      <button class="btn btn-sm btn-primary copy-btn" type="button" data-code="{{ code }}">{{ icon('copy', 'size-3.5') }}复制验证码</button>
+      {% endif %}
+      {% if magic_link %}
+      <button class="btn btn-sm copy-btn" type="button" data-code="{{ magic_link }}">{{ icon('copy', 'size-3.5') }}复制登录链接</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if html_body %}
+<div role="status" class="alert alert-soft mt-4 text-sm flex-wrap">
+  <span class="flex-1">{% if remote %}远端图片已加载,发件人可能得知这封邮件已被打开。{% else %}为保护隐私,默认不加载邮件里的外部图片。{% endif %}</span>
+  {% if remote %}
+  <a class="btn btn-sm" href="{{ url_for('admin_mail_view', box=box, key=key, back=back) }}">屏蔽图片</a>
+  {% else %}
+  <a class="btn btn-sm" href="{{ url_for('admin_mail_view', box=box, key=key, back=back, remote='1') }}">加载图片</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card bg-base-100 shadow-sm mt-4">
+  <div class="card-body">
+    {% if text_body %}
+    <pre class="mail-text">{{ text_body }}</pre>
+    {% elif html_body %}
+    <iframe id="mailframe" class="htmlmail bg-white rounded" sandbox="allow-same-origin"
+            srcdoc="{{ html_body }}" title="邮件正文"></iframe>
+    {% else %}
+    <p class="text-sm text-base-content/60">(此邮件没有正文)</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if atts %}
+<div class="card bg-base-100 shadow-sm mt-4">
+  <div class="card-body">
+    <h2 class="card-title text-base">附件({{ atts | length }})</h2>
+    <ul class="row-list">
+      {% for i, fn, size in atts %}
+      <li class="flex items-center gap-3 py-2.5">
+        <span class="text-base-content/50">{{ icon('file', 'size-5') }}</span>
+        <span class="min-w-0 flex-1 text-sm wrap-anywhere">{{ fn }}</span>
+        <span class="text-sm whitespace-nowrap text-base-content/60 tabular-nums">{{ size | fmt_size }}</span>
+        <a class="btn btn-sm" href="{{ url_for('admin_mail_attachment', box=box, key=key, idx=i) }}">下载</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+{% if html_body and not text_body %}
+<script>
+(function () {
+  var f = document.getElementById('mailframe');
+  if (!f) return;
+  f.addEventListener('load', function () {
+    try {
+      var h = f.contentDocument && f.contentDocument.documentElement
+                && f.contentDocument.documentElement.scrollHeight;
+      if (h && h > 0) f.style.height = Math.min(Math.max(h + 2, 300), 10000) + 'px';
+    } catch (e) { /* 保持 min-height */ }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

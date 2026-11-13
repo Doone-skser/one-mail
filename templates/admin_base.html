@@ -3,6 +3,8 @@
 {% block body %}
 {% from "_icons.html" import icon %}
 {% set on_links = request.path.startswith('/admin/links') %}
+{% set on_mails = request.path.startswith('/admin/mails') %}
+{% set on_home = not on_links and not on_mails %}
 <div class="min-h-screen lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
   <aside class="hidden lg:flex flex-col sticky top-0 h-screen bg-base-200 border-r border-base-content/10 px-3 py-4">
     <a class="flex items-center gap-2.5 px-2 mb-7" href="/admin/">
@@ -10,8 +12,10 @@
       <span class="text-lg font-bold tracking-tight">One<span class="text-primary">Mail</span> 取件</span>
     </a>
     <nav class="flex flex-col gap-1" aria-label="管理导航">
-      <a class="sidenav{% if not on_links %} sidenav-active{% endif %}" href="/admin/"
-         {% if not on_links %}aria-current="page"{% endif %}>{{ icon('list') }}邮箱列表</a>
+      <a class="sidenav{% if on_home %} sidenav-active{% endif %}" href="/admin/"
+         {% if on_home %}aria-current="page"{% endif %}>{{ icon('list') }}邮箱列表</a>
+      <a class="sidenav{% if on_mails %} sidenav-active{% endif %}" href="/admin/mails"
+         {% if on_mails %}aria-current="page"{% endif %}>{{ icon('mail') }}邮件管理</a>
       <a class="sidenav{% if on_links %} sidenav-active{% endif %}" href="/admin/links"
          {% if on_links %}aria-current="page"{% endif %}>{{ icon('chart') }}链接汇总</a>
     </nav>
@@ -29,8 +33,10 @@
         <span class="font-bold tracking-tight max-sm:hidden">One<span class="text-primary">Mail</span> 取件</span>
       </a>
       <nav class="flex items-center gap-1 text-sm">
-        <a class="btn btn-ghost btn-sm lg:hidden{% if not on_links %} text-primary{% endif %}" href="/admin/">
+        <a class="btn btn-ghost btn-sm lg:hidden{% if on_home %} text-primary{% endif %}" href="/admin/">
           {{ icon('list') }}<span class="max-sm:hidden">邮箱列表</span></a>
+        <a class="btn btn-ghost btn-sm lg:hidden{% if on_mails %} text-primary{% endif %}" href="/admin/mails">
+          {{ icon('mail') }}<span class="max-sm:hidden">邮件管理</span></a>
         <a class="btn btn-ghost btn-sm lg:hidden{% if on_links %} text-primary{% endif %}" href="/admin/links">
           {{ icon('chart') }}<span class="max-sm:hidden">链接汇总</span></a>
         <a class="btn btn-ghost btn-sm" href="/admin/logout">{{ icon('logout') }}退出</a>
